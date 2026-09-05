@@ -1,0 +1,18 @@
+# 统一换行：文本文件入库为 LF，避免 Windows 检出时反复转换
+* text=auto eol=lf
+
+# 明确的二进制类型（字体/图片/压缩包）不做任何转换
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.png   binary
+*.jpg   binary
+*.gif   binary
+*.webp  binary
+*.pdf   binary
+*.zip   binary
+
+# 文档类保留 CRLF 无意义，统一 LF
+*.md    text eol=lf
+*.py    text eol=lf
