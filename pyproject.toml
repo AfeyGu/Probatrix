@@ -20,5 +20,12 @@ calcbook = "calcbook.cli:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# 前端构建产物（src/calcbook/web）随 wheel 分发，使用侧无需 Node
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+calcbook = ["web/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
