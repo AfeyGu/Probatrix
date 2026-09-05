@@ -160,3 +160,10 @@ def test_export_pagebreak(client: TestClient) -> None:
         "md": "第一页\n\n<!-- pagebreak -->\n\n第二页",
     })
     assert "page-break" in r.json()["html"]
+
+
+def test_render_fragment(client: TestClient) -> None:
+    r = client.post("/api/render", json={"md": "## 标题\n\n$$a+b$$"})
+    html = r.json()["html"]
+    assert "<h2>标题</h2>" in html
+    assert "$$a+b$$" in html

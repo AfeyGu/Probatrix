@@ -26,6 +26,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as APIModel
 
 from .engine import RunResult, run_template
@@ -126,6 +127,10 @@ class ExportReq(APIModel):
     md: str
     title: str = "计算书"
     meta: dict[str, str] = {}          # 工程名/计算人/日期/校对人等页眉字段
+
+
+class RenderReq(APIModel):
+    md: str
 
 
 # ----------------------------------------------------------------------
@@ -282,10 +287,19 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
         )
         return {"html": page}
 
-    # 静态前端占位：前端构建产物将来放 web/dist，由 FastAPI 托管
-    @app.get("/")
-    def index() -> dict[str, str]:
-        return {"app": "CalcBook", "api": "/docs"}
+    # ---- 预览渲染（与导出同一套 md→HTML 逻辑）---------------------------
+    @app.post("/api/render")
+    def render(req: RenderReq) -> dict[str, str]:
+        return {"html": _render_markdown(req.md)}
+
+    # 前端：构建产物在包内 calcbook/web（由 vite 输出），有则静态托管
+    dist = Path(__file__).resolve().parent / "web"
+    if (dist / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=dist, html=True), name="web")
+    else:
+        @app.get("/")
+        def index() -> dict[str, str]:
+            return {"app": "CalcBook", "api": "/docs"}
 
     return app
 
