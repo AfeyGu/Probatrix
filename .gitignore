@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Node / 前端
+node_modules/
+dist-ssr/
+
+# 环境与密钥
+.env
+.env.*
+
+# 二进制与文档产物（沿用 OB123 仓库约定：PDF/Office/图片/压缩包/可执行文件不入库）
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.zip
+*.rar
+*.7z
+*.exe
+*.dll
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
