@@ -18,10 +18,12 @@
 
 from __future__ import annotations
 
+import base64
 import html
 import re
 import webbrowser
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -37,53 +39,59 @@ from .project import Project, load_project, new_project, save_project
 
 __all__ = ["create_app", "AppContext"]
 
-#: 自包含 HTML 模板：KaTeX 走 CDN（MVP；完全离线内嵌后续再做）
+#: 导出页模板：@@...@@ 为填充标记（不用 str.format，避开 CSS 花括号冲突）
 _HTML_TMPL = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>{title}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/mhchem.min.css">
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<title>@@TITLE@@</title>
+@@ASSETS@@
 <style>
-  body {{ font: 15px/1.75 "Source Han Serif SC", "Noto Serif SC", SimSun, serif;
-         max-width: 210mm; margin: 0 auto; padding: 24px 32px; color: #111; }}
-  .meta {{ border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 20px;
-          font-size: 14px; color: #444; }}
-  .meta b {{ margin-right: 24px; }}
-  table {{ border-collapse: collapse; margin: 12px 0; width: 100%; }}
-  th, td {{ border: 1px solid #999; padding: 4px 10px; text-align: left; }}
-  th {{ background: #f2f2f2; }}
-  blockquote {{ margin: 4px 0; padding: 2px 12px; color: #555;
-               border-left: 3px solid #bbb; font-size: 13px; }}
-  code {{ background: #f5f5f5; padding: 1px 4px; }}
-  img {{ max-width: 100%; }}
-  h1 {{ font-size: 22px; }} h2 {{ font-size: 18px; }} h3 {{ font-size: 16px; }}
-  @media print {{
-    body {{ padding: 0; }}
-    .no-print {{ display: none; }}
-    .page-break {{ page-break-before: always; }}
-  }}
+  body { font: 15px/1.75 "Source Han Serif SC", "Noto Serif SC", SimSun, serif;
+         max-width: 210mm; margin: 0 auto; padding: 24px 32px; color: #111; }
+  .meta { border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 20px;
+          font-size: 14px; color: #444; }
+  .meta b { margin-right: 24px; }
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+  th, td { border: 1px solid #999; padding: 4px 10px; text-align: left; }
+  th { background: #f2f2f2; }
+  blockquote { margin: 4px 0; padding: 2px 12px; color: #555;
+               border-left: 3px solid #bbb; font-size: 13px; }
+  code { background: #f5f5f5; padding: 1px 4px; }
+  img { max-width: 100%; }
+  h1 { font-size: 22px; } h2 { font-size: 18px; } h3 { font-size: 16px; }
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none; }
+    .page-break { page-break-before: always; }
+  }
 </style>
 </head>
 <body>
-<div class="meta">{meta}</div>
+<div class="meta">@@META@@</div>
 <div class="no-print" style="text-align:right;margin-bottom:8px">
   <button onclick="window.print()">打印 / 存为 PDF</button>
 </div>
-<div id="content">{content}</div>
+<div id="content">@@CONTENT@@</div>
 <script>
-  renderMathInElement(document.getElementById("content"), {{
+  renderMathInElement(document.getElementById("content"), {
     delimiters: [
-      {{left: "$$", right: "$$", display: true}},
-      {{left: "$", right: "$", display: false}},
+      {left: "$$", right: "$$", display: true},
+      {left: "$", right: "$", display: false},
     ],
-  }});
+  });
 </script>
 </body>
 </html>"""
+
+_KATEX_CDN = """<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>"""
+
+#: 离线导出仅内联 woff2（现代浏览器全支持）：约 0.65 MB；
+#: 再加 woff/ttf 会膨胀到 1.7 MB，收益只覆盖十几年前的旧浏览器。
+_SRC_RE = re.compile(r"src:(.*?)(?=;|\})", re.S)
+_FACE_ITEM_RE = re.compile(r'''url\(([^)]+)\)\s*format\("([^"]+)"\)''')
 
 
 @dataclass
@@ -128,6 +136,7 @@ class ExportReq(APIModel):
     md: str
     title: str = "计算书"
     meta: dict[str, str] = {}          # 工程名/计算人/日期/校对人等页眉字段
+    inline_assets: bool = False        # 离线版：内联 KaTeX 与字体（~0.7 MB）
 
 
 class RenderReq(APIModel):
@@ -280,13 +289,16 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
     def export_html(req: ExportReq) -> dict[str, str]:
         meta_cells = "".join(f"<b>{html.escape(k)}：{html.escape(v)}</b>"
                              for k, v in req.meta.items())
-        content = _render_markdown(req.md)
-        page = _HTML_TMPL.format(
-            title=html.escape(req.title),
-            meta=meta_cells,
-            content=content,
-        )
-        return {"html": page}
+        try:
+            assets = _assets_html(req.inline_assets)
+        except RuntimeError as e:
+            raise HTTPException(500, str(e))
+        page = (_HTML_TMPL
+                .replace("@@TITLE@@", html.escape(req.title))
+                .replace("@@ASSETS@@", assets)
+                .replace("@@META@@", meta_cells)
+                .replace("@@CONTENT@@", _render_markdown(req.md)))
+        return {"html": page, "inline": str(req.inline_assets)}
 
     # ---- 预览渲染（与导出同一套 md→HTML 逻辑）---------------------------
     @app.post("/api/render")
@@ -306,6 +318,50 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
 
 
 # ----------------------------------------------------------------------
+def _assets_html(inline: bool) -> str:
+    """头部资源：CDN（默认，文件小）或全量内联（离线可看）。"""
+    if not inline:
+        return _KATEX_CDN
+    css, kjs, arjs = _katex_inline_assets()
+    return (f"<style>{css}</style>"
+            f"<script>{kjs}</script><script>{arjs}</script>")
+
+
+@lru_cache(maxsize=1)
+def _katex_inline_assets() -> tuple[str, str, str]:
+    """读包内 vendor/katex（由 web/scripts/vendor-katex.mjs 构建时拷入）。
+
+    字体只保留 woff2 并转 base64，其余格式从 src 列表剔除（避免拼出无效 CSS）。
+    结果进进程缓存：改了 KaTeX 版本需重启服务。
+    """
+    k = Path(__file__).resolve().parent / "vendor" / "katex"
+    needed = ("katex.min.css", "katex.min.js", "contrib/auto-render.min.js")
+    missing = [n for n in needed if not (k / n).is_file()]
+    if missing:
+        raise RuntimeError(
+            f"缺少内嵌 KaTeX 资源：{missing}——请重新构建前端（cd web && npm run build）"
+        )
+
+    def _data_uri(rel: str, fmt: str) -> str:
+        path = (k / rel.lstrip("./")).resolve()
+        if not path.is_file():
+            return f'url("{rel}") format("{fmt}")'
+        b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+        mime = {"woff2": "font/woff2", "woff": "font/woff",
+                "truetype": "font/ttf"}.get(fmt, "application/octet-stream")
+        return f'url(data:{mime};base64,{b64}) format("{fmt}")'
+
+    def _rewrite_src(m: re.Match[str]) -> str:
+        items = _FACE_ITEM_RE.findall(m.group(1))
+        keep = [it for it in items if it[0].endswith(".woff2")] or items[:1]
+        return "src:" + ", ".join(_data_uri(u, f) for u, f in keep)
+
+    css = _SRC_RE.sub(_rewrite_src, (k / "katex.min.css").read_text(encoding="utf-8"))
+    return (css,
+            (k / "katex.min.js").read_text(encoding="utf-8"),
+            (k / "contrib" / "auto-render.min.js").read_text(encoding="utf-8"))
+
+
 def _result_json(r: RunResult) -> dict[str, Any]:
     return {
         "ok": r.ok, "md": r.md, "checks": r.checks,

@@ -162,6 +162,31 @@ def test_export_pagebreak(client: TestClient) -> None:
     assert "page-break" in r.json()["html"]
 
 
+def test_export_html_offline(client: TestClient) -> None:
+    """离线版：KaTeX 样式/脚本/字体全部内联，不依赖任何外部 URL。"""
+    md = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
+                     ).json()["md"]
+    page = client.post("/api/export/html", json={
+        "md": md, "title": "离线", "inline_assets": True,
+    }).json()["html"]
+
+    assert "cdn.jsdelivr" not in page             # 无外部依赖
+    assert "url(fonts/" not in page               # 字体已 base64，无残留相对路径
+    assert page.count("data:font/woff2") >= 20     # woff2 字体已内联
+    assert "katex" in page.lower()                 # KaTeX 样式与脚本在文内
+    assert len(page) > 500_000                     # 体量符合预期（~0.65 MB）
+
+
+def test_export_html_cdn_default(client: TestClient) -> None:
+    """默认仍为 CDN 轻量版，保持小文件。"""
+    md = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
+                     ).json()["md"]
+    page = client.post("/api/export/html", json={"md": md}).json()["html"]
+    assert "cdn.jsdelivr" in page
+    assert "data:font/woff2" not in page
+    assert len(page) < 100_000
+
+
 def test_render_fragment(client: TestClient) -> None:
     r = client.post("/api/render", json={"md": "## 标题\n\n$$a+b$$"})
     html = r.json()["html"]
