@@ -1,11 +1,13 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { store, refreshTemplates, selectTemplate, setView, addItem,
          saveProjectAs, openProjectFile, exportProjectHtml,
-         newBlankProject, touch } from './store'
+         newBlankProject, touch, setOfflineExport } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
+
+const fileInput = ref(null)
 
 const groupedItems = computed(() => {
   const groups = []
@@ -66,10 +68,8 @@ function ratioOf(item) {
       <el-input v-model="store.project.name" class="proj-name" placeholder="工程名"
                 @change="touch" />
       <el-button @click="onNewProject">新建</el-button>
-      <label class="file-btn">
-        <input type="file" accept=".cbproj,.json" hidden @change="onOpenFile" />
-        <el-button>打开</el-button>
-      </label>
+      <input ref="fileInput" type="file" accept=".cbproj,.json" hidden @change="onOpenFile" />
+      <el-button @click="fileInput?.click()">打开</el-button>
       <el-button type="primary" plain @click="saveProjectAs()">保存工程</el-button>
       <el-divider direction="vertical" />
       <el-select v-model="store.currentTemplateId" class="tpl-select"
@@ -86,6 +86,12 @@ function ratioOf(item) {
         <el-radio-button value="batch">批量</el-radio-button>
       </el-radio-group>
       <el-divider direction="vertical" />
+      <el-tooltip content="勾选后导出文件内嵌公式字体（约 0.7 MB），断网也能正常显示；不勾选则文件小、需联网渲染公式"
+                 placement="bottom">
+        <el-checkbox v-model="store.pref.offlineExport" @change="setOfflineExport($event)">
+          导出离线版
+        </el-checkbox>
+      </el-tooltip>
       <el-button type="primary" plain @click="onExportProject">导出工程 HTML</el-button>
     </el-header>
 
@@ -145,7 +151,6 @@ html, body, #app { height: 100%; margin: 0; }
 .brand { font-weight: 600; white-space: nowrap; color: #303133; }
 .proj-name { width: 180px; }
 .tpl-select { width: 180px; }
-.file-btn { cursor: pointer; }
 .body { height: calc(100% - 52px); }
 .aside { border-right: 1px solid #e4e7ed; padding: 10px; overflow: auto; }
 .loader-err { margin-bottom: 10px; }

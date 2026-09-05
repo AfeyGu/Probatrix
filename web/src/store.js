@@ -31,7 +31,17 @@ export const store = reactive({
 
   results: {},                   // itemId -> RunResult（单项/批量共用）
   runningIds: new Set(),
+
+  /** 导出偏好：离线版内嵌 KaTeX（~0.7 MB/文件，断网可看） */
+  pref: {
+    offlineExport: localStorage.getItem('calcbook.offline') === '1',
+  },
 })
+
+export function setOfflineExport(v) {
+  store.pref.offlineExport = v
+  localStorage.setItem('calcbook.offline', v ? '1' : '0')
+}
 
 const runDebounced = {}
 const syncNow = () => api.putProject(currentDoc()).catch(() => {})
@@ -81,7 +91,12 @@ export async function selectTemplate(templateId) {
   const items = itemsOf(templateId)
   if (!items.length) {
     await addItem(templateId)               // 打开模板即给一个默认计算项
-  } else if (store.viewMode === 'single' && !store.activeItemId) {
+  } else {
+    // 刷新/切换后没有缓存结果：补算一轮，否则预览空白、导出会报「无结果」
+    for (const it of items) if (!store.results[it.id]) scheduleRun(it.id)
+  }
+  if (store.viewMode === 'single' &&
+      (!store.activeItemId || !items.some(i => i.id === store.activeItemId))) {
     store.activeItemId = items[0].id
   }
 }
@@ -296,7 +311,7 @@ function metaFields() {
 }
 
 async function htmlOf(md, title) {
-  const { html } = await api.exportHtml(md, title, metaFields())
+  const { html } = await api.exportHtml(md, title, metaFields(), store.pref.offlineExport)
   return html
 }
 
