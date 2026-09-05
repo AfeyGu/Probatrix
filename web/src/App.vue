@@ -1,9 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { store, init, refreshTemplates, selectTemplate, setView, addItem,
+import { store, refreshTemplates, selectTemplate, setView, addItem,
          saveProjectAs, openProjectFile, exportProjectHtml,
-         newBlankProject } from './store'
+         newBlankProject, touch } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
 
@@ -41,9 +41,8 @@ async function onNewProject() {
 
 async function onExportProject() {
   try {
-    const html = await exportProjectHtml()
+    await exportProjectHtml()
     ElMessage.success('已导出 HTML')
-    return html
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -64,7 +63,8 @@ function ratioOf(item) {
   <el-container class="root">
     <el-header height="52px" class="header">
       <span class="brand">CalcBook 计算书工具</span>
-      <el-input v-model="store.project.name" class="proj-name" placeholder="工程名" />
+      <el-input v-model="store.project.name" class="proj-name" placeholder="工程名"
+                @change="touch" />
       <el-button @click="onNewProject">新建</el-button>
       <label class="file-btn">
         <input type="file" accept=".cbproj,.json" hidden @change="onOpenFile" />

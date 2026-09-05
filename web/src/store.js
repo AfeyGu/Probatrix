@@ -34,12 +34,25 @@ export const store = reactive({
 })
 
 const runDebounced = {}
+const syncNow = () => api.putProject(currentDoc()).catch(() => {})
+const syncDebounced = debounce(syncNow, 800)      // 工程变更自动回写服务端，刷新不丢
 
 // ---------------------------------------------------------------- 基础
 export async function init() {
   await loadTemplates()
-  const list = store.templates
-  if (list.length) await selectTemplate(list[0].template_id)
+  await pullProject()                             // 恢复服务端持有的工程
+  const first = store.project.items[0]
+  const target = first?.template_id ?? store.templates[0]?.template_id
+  if (target) await selectTemplate(target)
+}
+
+async function pullProject() {
+  try {
+    const doc = await api.getProject()
+    if (doc?.items?.length) {
+      store.project = { name: doc.name, items: doc.items, views: doc.views ?? {} }
+    }
+  } catch { /* 服务端不可用时保持本地空工程 */ }
 }
 
 export async function loadTemplates() {
@@ -68,7 +81,7 @@ export async function selectTemplate(templateId) {
   const items = itemsOf(templateId)
   if (!items.length) {
     await addItem(templateId)               // 打开模板即给一个默认计算项
-  } else if (store.viewMode === 'single') {
+  } else if (store.viewMode === 'single' && !store.activeItemId) {
     store.activeItemId = items[0].id
   }
 }
@@ -109,7 +122,9 @@ export async function addItem(templateId) {
   store.project.items.push(item)
   store.activeItemId = item.id
   scheduleRun(item.id)
-  return item
+  syncDebounced()
+  // 必须返回数组里的 reactive 代理：给原始对象赋值会绕过代理、不触发重渲染
+  return store.project.items[store.project.items.length - 1]
 }
 
 function defaultItemName(templateId, count) {
@@ -129,6 +144,8 @@ export function copyItem(id) {
   store.project.items.splice(idx + 1, 0, copy)
   store.activeItemId = copy.id
   scheduleRun(copy.id)
+  syncDebounced()
+  return store.project.items[idx + 1]          // 同上：返回代理
 }
 
 // 去掉 vue 响应式代理，保证 JSON 干净
@@ -144,15 +161,22 @@ export function deleteItem(id) {
   if (idx < 0) return
   store.project.items.splice(idx, 1)
   delete store.results[id]
+  syncDebounced()
   if (store.activeItemId === id) {
     store.activeItemId = itemsOf(store.currentTemplateId)[0]?.id ?? null
   }
+}
+
+/** 改了名字等非参数内容：标记变更并延迟回写 */
+export function touch() {
+  syncDebounced()
 }
 
 // ---------------------------------------------------------------- 运行
 export function scheduleRun(itemId) {
   const item = store.project.items.find(i => i.id === itemId)
   if (!item) return
+  syncDebounced()                             // 参数编辑也回写，刷新不丢
   const meta = store.templates.find(t => t.template_id === item.template_id)
   if (meta?.manual) return                    // 仅手动模板：不自动跑
   if (!runDebounced[itemId]) {
@@ -198,6 +222,7 @@ export function toggleCol(templateId, name, visible) {
   const hidden = new Set(view.hidden_cols)
   visible ? hidden.delete(name) : hidden.add(name)
   view.hidden_cols = [...hidden]
+  syncDebounced()
 }
 
 export function visibleParams(templateId) {
@@ -259,6 +284,7 @@ export async function newBlankProject() {
   store.results = {}
   store.staleIds = new Set()
   store.activeItemId = null
+  syncNow()
 }
 
 // ---------------------------------------------------------------- 导出

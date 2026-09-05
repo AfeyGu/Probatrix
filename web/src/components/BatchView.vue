@@ -55,11 +55,9 @@ function onPaste(e) {
   }
   let appended = 0
   lines.forEach((line, i) => {
+    const cells = line.split('\t')
     let item = items.value[i]
     if (!item) {
-      const cells = line.split('\t')
-      const seed = {}
-      params.forEach((name, j) => { if (cells[j] !== undefined) seed[name] = cells[j] })
       addItem(templateId.value).then(created => {
         params.forEach((name, j) => {
           if (cells[j] !== undefined) created.params[name] = coerce(cells[j], cols.value[j])
@@ -69,7 +67,7 @@ function onPaste(e) {
       appended++
       return
     }
-    line.split('\t').forEach((cell, j) => {
+    cells.forEach((cell, j) => {
       if (j < params.length && cols.value[j]) {
         item.params[params[j]] = coerce(cell, cols.value[j])
       }
@@ -119,7 +117,7 @@ async function onExportRow(row) {
     </div>
 
     <el-table :data="items" row-key="id" size="small" border
-              class="grid" :class="{ dropping: false }">
+              class="grid">
       <el-table-column label="名称" width="150">
         <template #default="{ row }">
           <el-input v-model="row.name" size="small" />

@@ -38,3 +38,7 @@ Thumbs.db
 .idea/
 .vscode/
 .pi/
+
+# 本地运行日志
+_srv.log
+_srv.err
