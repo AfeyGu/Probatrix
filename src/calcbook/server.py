@@ -1,0 +1,368 @@
+"""FastAPI 服务：CalcBook 本地后端（单用户本地应用，服务端持有状态）。
+
+端点一览（均挂 /api 前缀）：
+
+    GET    /api/templates                模板列表（含加载报错的文件）
+    POST   /api/templates/refresh        重扫模板目录（改代码免重启）
+    GET    /api/templates/{tid}/schema   参数元信息（驱动表单/表格列）
+    POST   /api/run                      单项计算 → RunResult
+    POST   /api/run-batch                批量计算 → 逐项 RunResult
+    GET    /api/project                  当前工程
+    PUT    /api/project                  整体替换当前工程（前端持有编辑态）
+    POST   /api/project/new              新建工程
+    POST   /api/project/save             保存到 .cbproj
+    POST   /api/project/load             从 .cbproj 载入
+    GET    /api/hash-check               工程内模板 hash 与当前文件比对（失效提示）
+    POST   /api/export/html              md → 自包含 HTML（KaTeX + 打印样式）
+"""
+
+from __future__ import annotations
+
+import html
+import webbrowser
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel as APIModel
+
+from .engine import RunResult, run_template
+from .fields import param_meta
+from .loader import TemplateLoader
+from .project import Project, load_project, new_project, save_project
+
+__all__ = ["create_app", "AppContext"]
+
+#: 自包含 HTML 模板：KaTeX 走 CDN（MVP；完全离线内嵌后续再做）
+_HTML_TMPL = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/mhchem.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>
+  body {{ font: 15px/1.75 "Source Han Serif SC", "Noto Serif SC", SimSun, serif;
+         max-width: 210mm; margin: 0 auto; padding: 24px 32px; color: #111; }}
+  .meta {{ border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 20px;
+          font-size: 14px; color: #444; }}
+  .meta b {{ margin-right: 24px; }}
+  table {{ border-collapse: collapse; margin: 12px 0; width: 100%; }}
+  th, td {{ border: 1px solid #999; padding: 4px 10px; text-align: left; }}
+  th {{ background: #f2f2f2; }}
+  blockquote {{ margin: 4px 0; padding: 2px 12px; color: #555;
+               border-left: 3px solid #bbb; font-size: 13px; }}
+  code {{ background: #f5f5f5; padding: 1px 4px; }}
+  img {{ max-width: 100%; }}
+  h1 {{ font-size: 22px; }} h2 {{ font-size: 18px; }} h3 {{ font-size: 16px; }}
+  @media print {{
+    body {{ padding: 0; }}
+    .no-print {{ display: none; }}
+    .page-break {{ page-break-before: always; }}
+  }}
+</style>
+</head>
+<body>
+<div class="meta">{meta}</div>
+<div class="no-print" style="text-align:right;margin-bottom:8px">
+  <button onclick="window.print()">打印 / 存为 PDF</button>
+</div>
+<div id="content">{content}</div>
+<script>
+  renderMathInElement(document.getElementById("content"), {{
+    delimiters: [
+      {{left: "$$", right: "$$", display: true}},
+      {{left: "$", right: "$", display: false}},
+    ],
+  }});
+</script>
+</body>
+</html>"""
+
+
+@dataclass
+class AppContext:
+    """服务端状态：模板加载器 + 当前工程（单用户本地应用）。"""
+
+    loader: TemplateLoader
+    project: Project = field(default_factory=new_project)
+
+    def ensure_template(self, template_id: str):
+        entry = self.loader.entries.get(template_id)
+        if entry is None:
+            raise HTTPException(404, f"模板不存在：{template_id}")
+        return entry
+
+
+# ----------------------------------------------------------------------
+# 请求/响应模型
+# ----------------------------------------------------------------------
+class RunReq(APIModel):
+    template_id: str
+    params: dict[str, Any] = {}
+    name: str = ""
+
+
+class BatchReq(APIModel):
+    template_id: str
+    items: list[RunReq]
+
+
+class ProjectDoc(APIModel):
+    name: str = "未命名工程"
+    items: list[dict[str, Any]] = []
+    views: dict[str, Any] = {}
+
+
+class PathReq(APIModel):
+    path: str
+
+
+class ExportReq(APIModel):
+    md: str
+    title: str = "计算书"
+    meta: dict[str, str] = {}          # 工程名/计算人/日期/校对人等页眉字段
+
+
+# ----------------------------------------------------------------------
+# 应用工厂
+# ----------------------------------------------------------------------
+def create_app(template_dir: str | Path | None = None) -> FastAPI:
+    app = FastAPI(title="CalcBook API", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["*"],
+        allow_methods=["*"], allow_headers=["*"],
+    )
+    ctx = AppContext(loader=TemplateLoader(template_dir or default_template_dir()))
+    ctx.loader.scan()
+    app.state.ctx = ctx
+
+    # ---- 模板 --------------------------------------------------------
+    @app.get("/api/templates")
+    def list_templates() -> dict[str, Any]:
+        return {
+            "templates": [
+                {
+                    "template_id": e.meta.template_id,
+                    "name": e.meta.name,
+                    "description": e.meta.description,
+                    "manual": e.meta.manual,
+                    "hash": e.hash,
+                }
+                for e in ctx.loader.entries.values()
+            ],
+            "errors": [
+                {"file": str(err.file), "error": err.error}
+                for err in ctx.loader.errors
+            ],
+        }
+
+    @app.post("/api/templates/refresh")
+    def refresh_templates() -> dict[str, Any]:
+        ctx.loader.scan()
+        return list_templates()
+
+    @app.get("/api/templates/{template_id}/schema")
+    def template_schema(template_id: str) -> dict[str, Any]:
+        entry = ctx.ensure_template(template_id)
+        return {
+            "template_id": entry.meta.template_id,
+            "name": entry.meta.name,
+            "description": entry.meta.description,
+            "manual": entry.meta.manual,
+            "hash": entry.hash,
+            "params": param_meta(entry.meta.params_model),
+        }
+
+    # ---- 计算 --------------------------------------------------------
+    @app.post("/api/run")
+    def run(req: RunReq) -> dict[str, Any]:
+        entry = ctx.ensure_template(req.template_id)
+        result = run_template(entry.meta, req.params)
+        return _result_json(result)
+
+    @app.post("/api/run-batch")
+    def run_batch(req: BatchReq) -> dict[str, Any]:
+        entry = ctx.ensure_template(req.template_id)
+        return {
+            "results": [
+                {"id": it.name or str(i), **_result_json(
+                    run_template(entry.meta, it.params))}
+                for i, it in enumerate(req.items)
+            ],
+        }
+
+    # ---- 工程 --------------------------------------------------------
+    def _doc() -> dict[str, Any]:
+        return {
+            "name": ctx.project.name,
+            "items": [
+                {
+                    "id": it.id, "name": it.name,
+                    "template_id": it.template_id,
+                    "template_hash": it.template_hash,
+                    "params": it.params, "deps": it.deps,
+                }
+                for it in ctx.project.items
+            ],
+            "views": ctx.project.views,
+        }
+
+    @app.get("/api/project")
+    def get_project() -> dict[str, Any]:
+        return _doc()
+
+    @app.put("/api/project")
+    def put_project(doc: ProjectDoc) -> dict[str, Any]:
+        proj = Project(
+            name=doc.name,
+            items=[],
+            views=doc.views,
+        )
+        from .project import CalcItem
+        for it in doc.items:
+            item = CalcItem(
+                name=it.get("name", ""),
+                template_id=it.get("template_id", ""),
+                template_hash=it.get("template_hash", ""),
+                params=it.get("params", {}),
+                deps=it.get("deps", {}),
+            )
+            if it.get("id"):
+                item.id = it["id"]          # 保留前端已有 id，否则用新生成
+            proj.items.append(item)
+        ctx.project = proj
+        return _doc()
+
+    @app.post("/api/project/new")
+    def new_proj(doc: ProjectDoc | None = None) -> dict[str, Any]:
+        ctx.project = new_project((doc or ProjectDoc()).name)
+        return _doc()
+
+    @app.post("/api/project/save")
+    def save_proj(req: PathReq) -> dict[str, Any]:
+        path = save_project(ctx.project, req.path)
+        return {"saved": str(path)}
+
+    @app.post("/api/project/load")
+    def load_proj(req: PathReq) -> dict[str, Any]:
+        ctx.project = load_project(req.path)
+        return _doc()
+
+    # ---- hash 校验 ----------------------------------------------------
+    @app.get("/api/hash-check")
+    def hash_check() -> dict[str, Any]:
+        from .loader import file_hash
+        rows = []
+        for it in ctx.project.items:
+            entry = ctx.loader.entries.get(it.template_id)
+            current = entry.hash if entry else None
+            rows.append({
+                "id": it.id, "template_id": it.template_id,
+                "stored": it.template_hash, "current": current,
+                "stale": current is not None and current != it.template_hash,
+                "missing": entry is None,
+            })
+        return {"items": rows}
+
+    # ---- 导出 --------------------------------------------------------
+    @app.post("/api/export/html")
+    def export_html(req: ExportReq) -> dict[str, str]:
+        meta_cells = "".join(f"<b>{html.escape(k)}：{html.escape(v)}</b>"
+                             for k, v in req.meta.items())
+        content = _render_markdown(req.md)
+        page = _HTML_TMPL.format(
+            title=html.escape(req.title),
+            meta=meta_cells,
+            content=content,
+        )
+        return {"html": page}
+
+    # 静态前端占位：前端构建产物将来放 web/dist，由 FastAPI 托管
+    @app.get("/")
+    def index() -> dict[str, str]:
+        return {"app": "CalcBook", "api": "/docs"}
+
+    return app
+
+
+# ----------------------------------------------------------------------
+def _result_json(r: RunResult) -> dict[str, Any]:
+    return {
+        "ok": r.ok, "md": r.md, "checks": r.checks,
+        "max_ratio": r.max_ratio, "all_ok": r.all_ok,
+        "error_title": r.error_title, "error": r.error,
+    }
+
+
+def _render_markdown(md: str) -> str:
+    """MVP 最小 md 渲染：标题/表格/引用/图片/段落；公式原样交给 KaTeX。"""
+    out: list[str] = []
+    in_table = False
+    for raw in md.splitlines():
+        line = raw.rstrip()
+        esc = html.escape(line)
+        if line.startswith("<!--") and "pagebreak" in line:
+            out.append("<div class='page-break'></div>")
+            continue
+        if line.startswith("$$"):
+            out.append(f"<p class='formula'>{esc}</p>")
+            continue
+        if line.startswith("|"):
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if set("".join(cells)) <= {"-", ":", " "}:     # 分隔行
+                continue
+            tag = "th" if not in_table else "td"
+            if not in_table:
+                out.append("<table><tr>" + "".join(
+                    f"<th>{html.escape(c)}</th>" for c in cells) + "</tr>")
+                in_table = True
+            else:
+                out.append("<tr>" + "".join(
+                    f"<td>{html.escape(c)}</td>" for c in cells) + "</tr>")
+            continue
+        if in_table:
+            out.append("</table>")
+            in_table = False
+        if not line:
+            continue
+        if line.startswith("### "):
+            out.append(f"<h3>{esc[4:]}</h3>")
+        elif line.startswith("## "):
+            out.append(f"<h2>{esc[3:]}</h2>")
+        elif line.startswith("# "):
+            out.append(f"<h1>{esc[2:]}</h1>")
+        elif line.startswith("> "):
+            out.append(f"<blockquote>{esc[2:]}</blockquote>")
+        elif line.startswith("- "):
+            out.append(f"<p class='item'>• {esc[2:]}</p>")
+        elif line.startswith("!["):
+            alt, _, rest = esc[2:].partition("](")
+            src = rest.rstrip(")")
+            out.append(f"<p style='text-align:center'><img src='{src}' alt='{alt}'></p>")
+        else:
+            out.append(f"<p>{esc}</p>")
+    if in_table:
+        out.append("</table>")
+    return "\n".join(out)
+
+
+def default_template_dir() -> Path:
+    return Path.home() / "CalcBook模板"
+
+
+def main(host: str = "127.0.0.1", port: int = 8317,
+         template_dir: str | Path | None = None, open_browser: bool = True) -> None:
+    import uvicorn
+    url = f"http://{host}:{port}"
+    if open_browser:
+        webbrowser.open(url)
+    uvicorn.run(create_app(template_dir), host=host, port=port, log_level="warning")
+
+
+if __name__ == "__main__":
+    main()

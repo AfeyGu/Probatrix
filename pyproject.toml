@@ -10,10 +10,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.6",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
 ]
 
 [project.scripts]
-# 后端服务就绪后启用：calcbook = "calcbook.server:main"
+calcbook = "calcbook.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
