@@ -167,3 +167,29 @@ def test_render_fragment(client: TestClient) -> None:
     html = r.json()["html"]
     assert "<h2>标题</h2>" in html
     assert "$$a+b$$" in html
+
+
+def test_render_blockquote_not_mangled(client: TestClient) -> None:
+    """回归：> 先转义再剥前缀会留下 't;'。"""
+    html = client.post("/api/render", json={
+        "md": "> 依据：GB 50017-2017 第 4.1.1 条",
+    }).json()["html"]
+    assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in html
+    assert "t;" not in html
+
+
+def test_render_bold(client: TestClient) -> None:
+    """回归：**粗体** 不能字面输出（结论行依赖它）。"""
+    html = client.post("/api/render", json={
+        "md": "- **抗弯强度**：95.2 ≤ 215 —— **满足**",
+    }).json()["html"]
+    assert "<b>抗弯强度</b>" in html
+    assert "<b>满足</b>" in html
+    assert "**" not in html
+
+
+def test_render_escapes_xss(client: TestClient) -> None:
+    html = client.post("/api/render", json={
+        "md": "<script>alert(1)</script>",
+    }).json()["html"]
+    assert "<script>" not in html and "&lt;script&gt;" in html

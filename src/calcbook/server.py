@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import html
+import re
 import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -314,55 +315,68 @@ def _result_json(r: RunResult) -> dict[str, Any]:
 
 
 def _render_markdown(md: str) -> str:
-    """MVP 最小 md 渲染：标题/表格/引用/图片/段落；公式原样交给 KaTeX。"""
+    """MVP 最小 md 渲染：标题/表格/引用/图片/列表/粗体；公式原样交给 KaTeX。"""
     out: list[str] = []
     in_table = False
     for raw in md.splitlines():
         line = raw.rstrip()
-        esc = html.escape(line)
         if line.startswith("<!--") and "pagebreak" in line:
             out.append("<div class='page-break'></div>")
             continue
         if line.startswith("$$"):
-            out.append(f"<p class='formula'>{esc}</p>")
+            out.append(f"<p class='formula'>{_esc(line)}</p>")
             continue
         if line.startswith("|"):
             cells = [c.strip() for c in line.strip("|").split("|")]
             if set("".join(cells)) <= {"-", ":", " "}:     # 分隔行
                 continue
-            tag = "th" if not in_table else "td"
             if not in_table:
                 out.append("<table><tr>" + "".join(
-                    f"<th>{html.escape(c)}</th>" for c in cells) + "</tr>")
+                    f"<th>{_inline(c)}</th>" for c in cells) + "</tr>")
                 in_table = True
             else:
                 out.append("<tr>" + "".join(
-                    f"<td>{html.escape(c)}</td>" for c in cells) + "</tr>")
+                    f"<td>{_inline(c)}</td>" for c in cells) + "</tr>")
             continue
         if in_table:
             out.append("</table>")
             in_table = False
         if not line:
             continue
-        if line.startswith("### "):
-            out.append(f"<h3>{esc[4:]}</h3>")
-        elif line.startswith("## "):
-            out.append(f"<h2>{esc[3:]}</h2>")
-        elif line.startswith("# "):
-            out.append(f"<h1>{esc[2:]}</h1>")
-        elif line.startswith("> "):
-            out.append(f"<blockquote>{esc[2:]}</blockquote>")
-        elif line.startswith("- "):
-            out.append(f"<p class='item'>• {esc[2:]}</p>")
-        elif line.startswith("!["):
-            alt, _, rest = esc[2:].partition("](")
-            src = rest.rstrip(")")
-            out.append(f"<p style='text-align:center'><img src='{src}' alt='{alt}'></p>")
+        # 先剥前缀（在转义之前），再转义剩余内容
+        for prefix, tag in (("### ", "h3"), ("## ", "h2"), ("# ", "h1"),
+                            ("> ", "blockquote"), ("- ", "li")):
+            if line.startswith(prefix):
+                body = _inline(line[len(prefix):])
+                if tag == "li":
+                    out.append(f"<p class='item'>• {body}</p>")
+                else:
+                    out.append(f"<{tag}>{body}</{tag}>")
+                break
         else:
-            out.append(f"<p>{esc}</p>")
+            if line.startswith("!["):
+                alt, _, rest = line[2:].partition("](")
+                src = rest.rstrip(")")
+                out.append(
+                    f"<p style='text-align:center'>"
+                    f"<img src='{_esc(src)}' alt='{_esc(alt)}'></p>")
+            else:
+                out.append(f"<p>{_inline(line)}</p>")
     if in_table:
         out.append("</table>")
     return "\n".join(out)
+
+
+def _esc(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+def _inline(text: str) -> str:
+    """转义后补行内样式：仅粗体（MVP 够用）。"""
+    return _BOLD_RE.sub(r"<b>\1</b>", _esc(text))
+
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
 
 def default_template_dir() -> Path:
