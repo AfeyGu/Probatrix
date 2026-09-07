@@ -3,7 +3,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { store, itemsOf, visibleParams, hiddenCols, toggleCol, scheduleRun,
-         runAll, addItem, copyItem, deleteItem, applyToAll, exportItemHtml } from '../store'
+         runAll, addItem, copyItem, deleteItem, moveItem, applyToAll, exportItemHtml } from '../store'
 
 const templateId = computed(() => store.currentTemplateId)
 const items = computed(() => itemsOf(templateId.value))
@@ -19,15 +19,36 @@ const summary = computed(() => {
 // ---- 统一设置（scratch 表单 → 应用到全部）----
 const uniVisible = ref(false)
 const uni = ref({})
+const mixedNames = ref([])        // 各行取值不一致的参数名
 function openUni() {
-  const first = items.value[0]
-  uni.value = first ? { ...first.params } : {}
+  const items = itemsOf(templateId.value)
+  if (!items.length) { ElMessage.info('先加一行再统一设置'); return }
+  const val = {}
+  const mixed = []
+  for (const p of store.schema?.params || []) {
+    const first = items[0].params[p.name]
+    const same = items.every(i => i.params[p.name] === first)
+    // 取值不一致时预置空：number 用 null，其余用 ''，应用时跳过
+    val[p.name] = same ? first : (cellType(p) === 'number' ? null : '')
+    if (!same) mixed.push(p.name)
+  }
+  uni.value = val
+  mixedNames.value = mixed
   uniVisible.value = true
 }
+function isMixed(p) { return mixedNames.value.includes(p.name) }
 function applyUni() {
-  applyToAll(templateId.value, { ...uni.value })
+  // 只统一「本来就一致」的字段和「用户填/选了值」的字段；
+  // 混合且留空的字段保持各行原值（避免用第一行的值悄悄覆盖其他行）
+  const patch = {}
+  for (const p of store.schema?.params || []) {
+    const v = uni.value[p.name]
+    if (isMixed(p) && (v === '' || v == null)) continue
+    patch[p.name] = v
+  }
+  applyToAll(templateId.value, patch)
   uniVisible.value = false
-  ElMessage.success('已应用到全部行')
+  ElMessage.success(`已统一 ${Object.keys(patch).length} 项参数`)
 }
 
 // ---- 列显隐 ----
@@ -82,6 +103,21 @@ function ratioText(r) {
   return r.max_ratio == null ? null : r.max_ratio.toFixed(2)
 }
 
+// 列最小宽度 = 表头文字单行宽度（拖动不可低于此值，保证单行显示）
+function colMinW(p) {
+  const text = (p.label || p.name) + (p.unit || '')
+  let w = 0
+  for (const ch of text) w += ch.charCodeAt(0) > 255 ? 14 : 7
+  return Math.max(88, Math.ceil(w) + (p.choices ? 44 : 30))   // 选择框留箭头位
+}
+
+function canMove(row, dir) {
+  const list = items.value
+  const idx = list.findIndex(i => i.id === row.id)
+  if (idx < 0) return false
+  return dir < 0 ? idx > 0 : idx < list.length - 1
+}
+
 async function onExportRow(row) {
   try {
     await exportItemHtml(row.id)
@@ -118,13 +154,13 @@ async function onExportRow(row) {
 
     <el-table :data="items" row-key="id" size="small" border
               class="grid">
-      <el-table-column label="名称" width="150">
+      <el-table-column label="名称" width="150" fixed="left">
         <template #default="{ row }">
           <el-input v-model="row.name" size="small" />
         </template>
       </el-table-column>
 
-      <el-table-column v-for="p in cols" :key="p.name" :min-width="p.choices ? 130 : 110">
+      <el-table-column v-for="p in cols" :key="p.name" :min-width="colMinW(p)">
         <template #header>
           {{ p.label || p.name }}<span v-if="p.unit" class="unit">{{ p.unit }}</span>
         </template>
@@ -168,8 +204,14 @@ async function onExportRow(row) {
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="204" fixed="right">
         <template #default="{ row }">
+          <el-button size="small" text type="primary" title="上移"
+                     :disabled="!canMove(row, -1)"
+                     @click="moveItem(templateId, row.id, -1)">↑</el-button>
+          <el-button size="small" text type="primary" title="下移"
+                     :disabled="!canMove(row, 1)"
+                     @click="moveItem(templateId, row.id, 1)">↓</el-button>
           <el-button size="small" text type="primary" @click="copyItem(row.id)">复制</el-button>
           <el-button size="small" text type="primary" @click="onExportRow(row)">导出</el-button>
           <el-button size="small" text type="danger" @click="deleteItem(row.id)">删</el-button>
@@ -178,17 +220,28 @@ async function onExportRow(row) {
     </el-table>
 
     <el-dialog v-model="uniVisible" title="统一设置（应用到全部行）" width="480">
+      <div v-if="mixedNames.length" class="uni-hint">
+        标 <span class="mixed-mark">＊</span> 的参数各行取值不同：留空则保持各行原值，填入/选择后应用即统一该列。
+      </div>
       <div v-for="p in store.schema?.params || []" :key="p.name" class="field">
         <div class="field-label">
-          {{ p.label || p.name }}<span v-if="p.unit" class="unit">（{{ p.unit }}）</span>
+          {{ p.label || p.name }}<span v-if="isMixed(p)" class="mixed-mark">＊</span><span v-if="p.unit" class="unit">（{{ p.unit }}）</span>
         </div>
         <el-select v-if="cellType(p) === 'select'" v-model="uni[p.name]">
+          <el-option v-if="isMixed(p)" value="" label="（各行不同，保持不变）" />
           <el-option v-for="c in p.choices" :key="c" :value="c" :label="c" />
         </el-select>
         <el-input-number v-else-if="cellType(p) === 'number'" v-model="uni[p.name]"
-                         :controls="false" class="num" />
+                         :controls="false" class="num"
+                         :placeholder="isMixed(p) ? '各行不同，留空保持原值' : ''" />
+        <el-select v-else-if="cellType(p) === 'switch' && isMixed(p)" v-model="uni[p.name]">
+          <el-option value="" label="（各行不同，保持不变）" />
+          <el-option :value="true" label="开" />
+          <el-option :value="false" label="关" />
+        </el-select>
         <el-switch v-else-if="cellType(p) === 'switch'" v-model="uni[p.name]" />
-        <el-input v-else v-model="uni[p.name]" />
+        <el-input v-else v-model="uni[p.name]"
+                  :placeholder="isMixed(p) ? '各行不同，留空保持原值' : ''" />
       </div>
       <template #footer>
         <el-button @click="uniVisible = false">取消</el-button>
@@ -201,16 +254,30 @@ async function onExportRow(row) {
 <style scoped>
 .batch { height: 100%; display: flex; flex-direction: column; }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-.summary { color: #606266; font-size: 13px; }
-.bad { color: #f56c6c; }
-.hint { color: #909399; font-size: 12px; }
-.unit { color: #909399; font-size: 11px; margin-left: 4px; font-weight: 400; }
+.summary { color: var(--cb-text-2); font-size: 13px; }
+.bad { color: var(--cb-bad); }
+.hint { color: var(--cb-text-3); font-size: 12px; }
+.unit { color: var(--cb-text-3); font-size: 11px; margin-left: 4px; font-weight: 400; }
 .grid { flex: 1; }
+/* 表格直接落在画布上：圆角融掉自身边框，不套卡片 */
+.grid { border-radius: 8px; }
+.grid :deep(.el-table__inner-wrapper::before) { border-radius: 8px; }
+/* 单元格/表头单行显示，不换行（配合 min-width 拖动下限） */
+.grid :deep(.el-table__cell .cell) { white-space: nowrap; }
+/* 操作列按钮收紧，保证完整显示 */
+.grid :deep(td:last-child .el-button) { padding: 5px 6px; }
+.grid :deep(td:last-child .el-button + .el-button) { margin-left: 4px; }
+/* 列多时横向滚动条常显（el-scrollbar 默认 hover 才出现，容易被认为不能滚） */
+.grid :deep(.el-scrollbar__bar.is-horizontal) { display: block !important; opacity: 1; height: 10px; }
 .grid :deep(.el-input__inner), .grid :deep(.el-input-number__decreasing),
 .grid :deep(.el-input-number__increasing) { text-align: left; }
 .num { width: 100%; }
-.ok { color: #67c23a; }
-.over { color: #f56c6c; }
+.ok { color: var(--cb-ok); }
+.over { color: var(--cb-bad); }
 .col-row { margin-bottom: 4px; }
 .tip-pre { max-height: 220px; overflow: auto; font-size: 11px; }
+.uni-hint { font-size: 12px; color: var(--cb-text-3); line-height: 1.6;
+            margin-bottom: 12px; padding: 8px 10px;
+            background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 6px; }
+.mixed-mark { color: var(--cb-warn); font-weight: 600; }
 </style>
