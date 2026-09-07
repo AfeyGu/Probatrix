@@ -262,9 +262,15 @@ def ensure_venv(base_py: str, base: Path, wheel: Path) -> bool:
     return True
 
 
+def _wheel_key(p: Path) -> tuple:
+    """wheel 文件名版本排序键：calcbook-0.1.0a10 > calcbook-0.1.0a9（字符串序会错）"""
+    nums = re.findall(r"\d+", p.name)
+    return tuple(int(x) for x in nums) if len(nums) >= 4 else (0,)
+
+
 def main() -> int:
     base = Path(sys.executable).resolve().parent  # PyInstaller 单文件：exe 所在目录
-    wheels = sorted(base.glob("calcbook-*.whl"))
+    wheels = sorted(base.glob("calcbook-*.whl"), key=_wheel_key)
     if not wheels:
         return fatal("缺少 calcbook-*.whl，请把离线包完整解压后再运行。")
     wheel = wheels[-1]

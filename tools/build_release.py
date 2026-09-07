@@ -31,8 +31,14 @@ def version() -> str:
 
 def build_wheel() -> Path:
     print("==> 构建 wheel")
+    shutil.rmtree(ROOT / "dist", ignore_errors=True)  # 清残留 wheel，避免版本混淆
     subprocess.run([sys.executable, "-m", "build", "--wheel"], cwd=ROOT, check=True)
-    wheels = sorted((ROOT / "dist").glob("calcbook-*.whl"))
+
+    def key(p: Path) -> tuple:  # 版本序：a10 > a9（字符串序会错）
+        nums = re.findall(r"\d+", p.name)
+        return tuple(int(x) for x in nums) if len(nums) >= 4 else (0,)
+
+    wheels = sorted((ROOT / "dist").glob("calcbook-*.whl"), key=key)
     if not wheels:
         raise SystemExit("wheel 构建失败")
     return wheels[-1]
