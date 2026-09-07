@@ -119,6 +119,14 @@ def test_image_and_table() -> None:
     assert "| A | B |" in md and "| 1 | 2 |" in md
 
 
+def test_image_bytes_datauri() -> None:
+    b = CalcBook()
+    b.image_bytes(b"\x89PNG-fake", caption="简图")
+    md = b.to_markdown()
+    assert md.startswith("![简图](data:image/png;base64,")
+    assert "iVBORy1mYWtl" in md           # b"\x89PNG-fake" 的 base64
+
+
 # ----------------------------------------------------------------------
 # 示例模板 gl.py 端到端
 # ----------------------------------------------------------------------

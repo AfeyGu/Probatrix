@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -94,9 +95,17 @@ class CalcBook:
     # 插图
     # ------------------------------------------------------------------
     def image(self, path: str, *, caption: str = "") -> "CalcBook":
-        """插入图片（截面简图/计算简图；路径或 URL，前端/导出侧负责解析）。"""
+        """插入图片（URL 或相对路径；导出为文件时相对路径会失效，慎用）。"""
         self._items.append(_Item(kind="image", path=path, caption=caption))
         return self
+
+    def image_bytes(self, data: bytes, *, mime: str = "image/png",
+                    caption: str = "") -> "CalcBook":
+        """插入二进制图片（推荐）：转 base64 data URI，预览/导出/离线全可用。
+
+        典型来源：matplotlib 画截面简图/计算简图，savefig 到 BytesIO。"""
+        b64 = base64.b64encode(data).decode("ascii")
+        return self.image(f"data:{mime};base64,{b64}", caption=caption)
 
     # ------------------------------------------------------------------
     # 表格（自由内容用；验算结论汇总是自动生成的，不需要模板作者手写）

@@ -25,6 +25,8 @@ calcbook serve --templates D/我的模板 --port 8317
 
 ## 写一个计算模板
 
+> **完整的模板开发者文档见 [`docs/模板开发指南.md`](docs/模板开发指南.md)**——参数声明、CalcBook API、插图、单位纪律、调试方法。
+
 一个模板 = 一个 `.py` 文件，放进模板目录即被自动扫描。两部分：**参数声明** + **计算书写法**。
 
 ```python
@@ -61,7 +63,7 @@ def calc(p: GLParams) -> CalcBook:
 批量表格每行也会显示最大应力比（超限标红）。
 
 CalcBook 可用方法：`h1/h2/h3` 标题、`p` 文字、`formula` 符号公式、`subs` 代入式、
-`check` 验算、`image` 插图（截面/计算简图）、`table` 自由表格。
+`check` 验算、`image_bytes` 插图（matplotlib 截面/计算简图）、`table` 自由表格。
 
 ### 单位纪律
 
