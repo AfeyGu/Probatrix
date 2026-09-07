@@ -28,7 +28,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-EXPECTED_VERSION = "0.1.0a5"
+EXPECTED_VERSION = "0.1.0a7"
 MIN_VERSION = (3, 11)
 PIP_INDEX = os.environ.get(
     "CALCBOOK_PIP_INDEX", "https://mirrors.aliyun.com/pypi/simple")

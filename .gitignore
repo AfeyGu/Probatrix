@@ -43,3 +43,7 @@ Thumbs.db
 _srv.log
 _srv.err
 release/
+
+# README 截图与图标（例外入库）
+!assets/*.png
+!assets/*.ico

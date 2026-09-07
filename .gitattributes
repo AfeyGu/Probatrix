@@ -12,6 +12,7 @@
 *.webp  binary
 *.pdf   binary
 *.zip   binary
+*.ico   binary
 
 # 文档类保留 CRLF 无意义，统一 LF
 *.md    text eol=lf

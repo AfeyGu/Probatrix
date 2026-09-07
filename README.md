@@ -1,5 +1,7 @@
 # CalcBook · 计算书工具
 
+<img src="web/public/icon.svg" alt="CalcBook 图标" width="64" />
+
 结构设计中「小构件」的批量计算与计算书生成工具。
 
 解决的问题：验算小软件不能批量输入参数；Excel 能批量但复杂公式难写、卡、导出计算书要手动排版。
@@ -8,6 +10,10 @@
 **计算书由模板生成 Markdown + LaTeX**（无代码、可打印），工程文件保存全部参数可复现。
 
 ## 安装与启动
+
+<img src="assets/screenshot-main.png" alt="CalcBook 桌面窗口界面" width="720" />
+
+*界面：左侧参数设置，右侧计算书实时预览（KaTeX 渲染）；批量表格支持 Excel 粘贴。*
 
 ```bash
 pip install calcbook        # 或从源码：pip install .

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- 底：细圆角方形 -->
+  <rect x="14" y="14" width="228" height="228" rx="52" fill="#1e2430"/>
+  <!-- ∑ 求和符号：顶横 → 斜线 → 底横（右侧留出斜线端点） -->
+  <path d="M 60 66 H 188 L 124 128 L 188 190 H 60"
+        fill="none" stroke="#faf9f7" stroke-width="22"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

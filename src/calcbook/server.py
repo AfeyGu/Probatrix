@@ -503,8 +503,36 @@ def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str
             time.sleep(0.1)
 
     webview.create_window("CalcBook 计算书", url, width=1536, height=846)
-    webview.start()
+    webview.start(lambda: threading.Thread(
+        target=_apply_window_icon, daemon=True).start())
     server.should_exit = True
+
+
+def _apply_window_icon() -> None:
+    """WM_SETICON 设置窗口标题栏/任务栏图标（pywebview 无 icon API）。
+    打包（launcher→venv）与源码运行均生效：图标来自包内 icon.ico。"""
+    import time
+    import ctypes
+    ico = Path(__file__).resolve().parent / "icon.ico"
+    if not ico.is_file():
+        return
+    user32 = ctypes.windll.user32
+    wm_seticon = 0x0080
+    hwnd = 0
+    for _ in range(30):  # 等窗口标题就绪（最多约 6 秒）
+        hwnd = user32.FindWindowW(None, "CalcBook 计算书")
+        if hwnd:
+            break
+        time.sleep(0.2)
+    if not hwnd:
+        return
+    try:
+        hicon = user32.LoadImageW(None, str(ico), 1, 64, 64, 0x0010)
+        if hicon:
+            user32.SendMessageW(hwnd, wm_seticon, 1, hicon)  # ICON_BIG
+            user32.SendMessageW(hwnd, wm_seticon, 0, hicon)  # ICON_SMALL
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":

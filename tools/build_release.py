@@ -42,7 +42,8 @@ def build_launcher() -> Path:
     print("==> 打包 launcher.exe（PyInstaller 单文件）")
     subprocess.run(
         [sys.executable, "-m", "PyInstaller", "--onefile", "--console", "--clean",
-         "--name", "launcher", "--distpath", str(RELEASE / "_build" / "dist"),
+         "--name", "launcher", "--icon", str(ROOT / "assets" / "icon.ico"),
+         "--distpath", str(RELEASE / "_build" / "dist"),
          "--workpath", str(RELEASE / "_build" / "work"), "--specpath", str(RELEASE),
          str(ROOT / "tools" / "launcher.py")],
         check=True)
