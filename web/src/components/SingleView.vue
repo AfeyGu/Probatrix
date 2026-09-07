@@ -3,8 +3,8 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import renderMathInElement from 'katex/contrib/auto-render'
 import { api } from '../api'
-import { store, activeItem, scheduleRun, runItem, exportItemHtml } from '../store'
-import { ElMessage } from 'element-plus'
+import { store, activeItem, scheduleRun, runItem, exportItemHtml, deleteItem } from '../store'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const item = computed(() => activeItem())
 
@@ -57,6 +57,13 @@ async function onExport() {
   } catch (e) { ElMessage.error(e.message) }
 }
 
+async function onDelete() {
+  await ElMessageBox.confirm(`删除计算项「${item.value.name}」？删除后不可恢复。`, '删除计算项',
+                            { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  deleteItem(item.value.id)
+  ElMessage.success('已删除')
+}
+
 function controlType(p) {
   if (p.choices) return 'select'
   if (p.type === 'float' || p.type === 'int') return 'number'
@@ -72,12 +79,13 @@ function controlType(p) {
         <el-input v-model="item.name" class="item-name" placeholder="计算项名称" />
         <el-tag v-if="running" size="small" type="info">计算中…</el-tag>
         <el-button size="small" @click="runItem(item.id)">重算</el-button>
-        <el-button size="small" type="primary" plain @click="onExport">导出 HTML</el-button>
+        <el-button size="small" @click="onExport">导出 HTML</el-button>
+        <el-button size="small" text type="danger" @click="onDelete">删除</el-button>
       </div>
 
       <el-collapse v-model="openGroups">
         <el-collapse-item v-for="g in groups" :key="g.name" :name="g.name">
-          <template #title><b>{{ g.name }}</b></template>
+          <template #title><span class="group-name">{{ g.name }}</span></template>
           <div v-for="p in g.params" :key="p.name" class="field">
             <div class="field-label">
               {{ p.label || p.name }}
@@ -103,27 +111,29 @@ function controlType(p) {
         <template #title>{{ result.error_title || '计算失败' }}</template>
         <pre class="err-pre">{{ result.error }}</pre>
       </el-alert>
-      <div v-show="result?.ok" ref="previewEl" class="md-body" v-html="previewHtml" />
+      <!-- 版心 210mm ≈ 794px，与导出页一致（所见即所得） -->
+      <div v-show="result?.ok" ref="previewEl" class="doc-paper">
+        <div class="cb-doc" v-html="previewHtml" />
+      </div>
       <el-empty v-if="!result" description="尚无结果，修改参数即自动计算" />
     </div>
   </div>
 </template>
 
 <style scoped>
-.single { display: flex; gap: 12px; height: 100%; }
-.pane { flex: 1; overflow: auto; border: 1px solid #e4e7ed; border-radius: 6px; padding: 12px; }
+.single { display: flex; gap: 16px; height: 100%; }
+.pane { flex: 1; overflow: auto; background: var(--cb-surface);
+        border: 1px solid var(--cb-border); border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .05); padding: 16px; }
 .pane-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .item-name { width: 200px; }
-.field { margin-bottom: 12px; }
-.field-label { font-size: 13px; color: #606266; margin-bottom: 4px; }
-.unit { color: #909399; font-size: 12px; }
+.group-name { font-weight: 600; }
+.field { margin-bottom: 16px; }
+.field-label { font-size: 13px; color: var(--cb-text-2); margin-bottom: 4px; }
+.unit { color: var(--cb-text-3); font-size: 12px; }
 .num { width: 100%; }
+/* 预览：与导出同源排版的纸面（.cb-doc 样式来自 /api/doc.css） */
+.doc-paper { max-width: 794px; margin: 0 auto; }
 .err-pre { max-height: 300px; overflow: auto; font-size: 12px; line-height: 1.5;
            margin: 6px 0 0; white-space: pre-wrap; }
-.md-body :deep(blockquote) { margin: 4px 0; padding: 2px 12px; color: #555;
-  border-left: 3px solid #bbb; font-size: 13px; }
-.md-body :deep(table) { border-collapse: collapse; margin: 10px 0; width: 100%; }
-.md-body :deep(th), .md-body :deep(td) { border: 1px solid #999; padding: 4px 10px; }
-.md-body :deep(th) { background: #f2f2f2; }
-.md-body :deep(.katex-display) { margin: 10px 0; }
 </style>
