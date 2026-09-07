@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "calcbook"
-version = "0.1.0"
+version = "0.1.0a3"
 description = "结构构件批量计算书工具：Python 模板 + 批量参数 + Markdown/LaTeX 计算书"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.6",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
+    "pywebview>=5.0",
 ]
 
 [project.scripts]
@@ -29,3 +30,4 @@ calcbook = ["web/**/*", "vendor/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]

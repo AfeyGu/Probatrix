@@ -444,13 +444,84 @@ def default_template_dir() -> Path:
     return Path.home() / "CalcBook模板"
 
 
+def find_free_port(host: str, port: int) -> int:
+    """从 port 起找第一个可绑定端口（含本身），最多试 100 个。"""
+    import socket
+    for p in range(port, port + 100):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, p))
+                return p
+            except OSError:
+                continue
+    raise SystemExit(f"端口 {port}-{port + 99} 均被占用，无法启动服务")
+
+
 def main(host: str = "127.0.0.1", port: int = 8317,
-         template_dir: str | Path | None = None, open_browser: bool = True) -> None:
+         template_dir: str | Path | None = None, open_browser: bool = True,
+         ui: str = "browser") -> None:
     import uvicorn
+    base_port = port
+    port = find_free_port(host, port)
+    if port != base_port:
+        print(f"端口 {base_port} 已被占用，改用 {port}", flush=True)
     url = f"http://{host}:{port}"
+    print(f"CalcBook 已启动：{url}（Ctrl+C 退出）", flush=True)
+    if ui == "webview":
+        _run_webview(host, port, template_dir, url)
+        return
     if open_browser:
         webbrowser.open(url)
     uvicorn.run(create_app(template_dir), host=host, port=port, log_level="warning")
+
+
+def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str) -> None:
+    """桌面窗口模式：uvicorn 跑后台线程，pywebview 开原生窗口（Win10/11 自带 WebView2）。"""
+    import threading
+    import time
+    import urllib.request
+    try:
+        import webview
+    except ImportError:
+        print("未安装 pywebview，退回浏览器模式（pip install pywebview 可启用桌面窗口）", flush=True)
+        webbrowser.open(url)
+        import uvicorn
+        uvicorn.run(create_app(template_dir), host=host, port=port, log_level="warning")
+        return
+
+    import uvicorn
+    server = uvicorn.Server(uvicorn.Config(
+        create_app(template_dir), host=host, port=port, log_level="warning"))
+    threading.Thread(target=server.run, daemon=True).start()
+
+    # 等服务真正监听后再开窗口，避免加载失败
+    for _ in range(50):
+        try:
+            urllib.request.urlopen(url, timeout=1).close()
+            break
+        except OSError:
+            time.sleep(0.1)
+
+    w, h = _window_size()
+    webview.create_window("CalcBook 计算书", url, width=w, height=h)
+    webview.start()
+    server.should_exit = True
+
+
+def _window_size() -> tuple[int, int]:
+    """默认窗口大小：屏幕工作区的 90%（接近常见的浏览器窗口体量）。"""
+    try:
+        import ctypes.wintypes
+        rc = ctypes.wintypes.RECT()
+        ctypes.windll.user32.SystemParametersInfoW(
+            0x0030, 0, ctypes.byref(rc), 0)  # SPI_GETWORKAREA
+        w = int((rc.right - rc.left) * 0.9)
+        h = int((rc.bottom - rc.top) * 0.9)
+        if w > 200 and h > 200:
+            return w, h
+    except Exception:
+        pass
+    return 1280, 800
 
 
 if __name__ == "__main__":

@@ -14,14 +14,27 @@ pip install calcbook        # 或从源码：pip install .
 calcbook serve              # 启动本地服务并自动打开浏览器
 ```
 
-默认地址 `http://127.0.0.1:8317`，模板目录默认 `~/CalcBook模板/`。
+默认地址 `http://127.0.0.1:8317`（被占用时自动向后递加找空闲端口，启动信息会打印实际地址），
+模板目录默认 `~/CalcBook模板/`。
 
 ```bash
 calcbook serve --templates D/我的模板 --port 8317
 ```
 
+**桌面窗口模式**（不弹浏览器，Win10/11 自带 WebView2）：
+
+```bash
+calcbook serve --ui webview
+```
+
 > 界面构建产物已随包分发（`src/calcbook/web/`），**使用侧不需要 Node**；
 > 只有改前端代码时才需要 `cd web && npm install && npm run build`。
+
+**离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `launcher.exe`
+（+ wheel + `examples/` 模板）。双击 launcher 自动完成：找本机 Python
+（缺则从华为云镜像下载静默安装）→ 首次运行把 calcbook 及依赖装进包目录内
+`venv/`（不写入系统 Python，删目录即完全卸载）→ 以桌面窗口启动服务。
+构建方式 `python tools/build_release.py`。
 
 ## 写一个计算模板
 

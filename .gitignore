@@ -42,3 +42,4 @@ Thumbs.db
 # 本地运行日志
 _srv.log
 _srv.err
+release/
