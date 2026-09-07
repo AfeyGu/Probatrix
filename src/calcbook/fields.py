@@ -21,7 +21,7 @@ from pydantic.fields import FieldInfo, PydanticUndefined
 __all__ = ["Field", "param_meta"]
 
 #: Field 支持的 CalcBook 扩展元信息键
-_META_KEYS = ("label", "unit", "choices", "group")
+_META_KEYS = ("label", "unit", "choices", "group", "batch_hidden")
 
 
 def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
@@ -31,12 +31,14 @@ def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
     unit: str | None = None,
     choices: list | tuple | None = None,
     group: str | None = None,
+    batch_hidden: bool = False,
     **kwargs: Any,
 ) -> FieldInfo:
     """pydantic.Field 的薄包装，把界面元信息收进 json_schema_extra。
 
     声明即界面：label（中文名）、unit（单位，展示用）、choices（下拉选项）、
-    group（参数分组；批量模式下同组参数可整组「统一设置」）。
+    group（参数分组；批量模式下同组参数可整组「统一设置」）、
+    batch_hidden（True 时批量表格默认不显示该列，可在「列显隐」里勾回）。
     其余参数原样透传 pydantic.Field（如 ge、le、description）。
     """
     extra: dict[str, Any] = dict(kwargs.pop("json_schema_extra", None) or {})
@@ -45,6 +47,7 @@ def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
         ("unit", unit),
         ("choices", list(choices) if choices is not None else None),
         ("group", group),
+        ("batch_hidden", batch_hidden or None),
     ):
         if value is not None:
             extra[key] = value

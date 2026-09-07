@@ -50,7 +50,7 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
   同轮同步相关 md（`AGENTS.md` 架构图、`计算书工具文档.md`、`docs/模板开发指南.md`、
   `README.md`），不能只改代码。
-- **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑。
+- **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。

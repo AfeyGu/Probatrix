@@ -262,12 +262,16 @@ export function applyToAll(templateId, fields) {
 
 // ---------------------------------------------------------------- 列显隐
 export function hiddenCols(templateId) {
-  return store.project.views[templateId]?.hidden_cols ?? []
+  const saved = store.project.views[templateId]?.hidden_cols
+  if (saved) return saved
+  // 未保存过列配置：用参数声明里的默认隐藏标记（batch_hidden）
+  return (store.schema?.params ?? []).filter(p => p.batch_hidden).map(p => p.name)
 }
 
 export function toggleCol(templateId, name, visible) {
   const views = store.project.views
-  const view = (views[templateId] ??= { hidden_cols: [] })
+  // 首次勾选时以当前生效集合初始化（含 batch_hidden 默认隐藏项），此后为绝对集合
+  const view = (views[templateId] ??= { hidden_cols: hiddenCols(templateId).slice() })
   const hidden = new Set(view.hidden_cols)
   visible ? hidden.delete(name) : hidden.add(name)
   view.hidden_cols = [...hidden]

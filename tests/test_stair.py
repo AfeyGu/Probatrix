@@ -112,7 +112,13 @@ def test_param_meta(meta):
     metas = {m["name"]: m for m in param_meta(meta.params_model)}
     assert metas["support"]["choices"] == ["两端弹性", "下铰上弹"]
     assert metas["support"]["group"] == "几何"
-    assert metas["k_coef"]["default"] == 25
+    # 梯板系数默认 0=按支座形式自动（两端弹性 28 / 下铰上弹 25）
+    assert metas["k_coef"]["default"] == 0
+    # batch_hidden：默认不显示的列（梯板系数/混凝土等级/分项系数等 12 项）
+    hidden = [m["name"] for m in metas.values() if m.get("batch_hidden")]
+    assert metas["k_coef"]["batch_hidden"] is True
+    assert "concrete" in hidden and "gamma0" in hidden and "cover" in hidden
+    assert "support" not in hidden and "q_live" not in hidden
     assert metas["concrete"]["choices"][0] == "C25"
     assert metas["rebar"]["choices"] == ["HPB300", "HRB400", "HRB500"]
 

@@ -102,31 +102,31 @@ class StairParams(BaseModel):
         0.5, label="两侧栏板(杆)线荷载标准值 g", unit="kN/m", ge=0, group="几何",
     )
     k_coef: float = Field(
-        25, label="梯板系数 k", gt=0, group="几何",
-        description="梯段板厚 t = 向上取整10mm[(a·n+L1+L2)/k]，且 ≥100mm",
+        0, label="梯板系数 k", ge=0, group="几何", batch_hidden=True,
+        description="板厚=向上取整10mm[(a·n+L1+L2)/k]；0=按支座形式自动（两端弹性 28 / 下铰上弹 25）",
     )
 
     # —— 材料 ——
     concrete: str = Field(
         "C30", label="混凝土等级",
-        choices=list(CONCRETE), group="材料",
+        choices=list(CONCRETE), group="材料", batch_hidden=True,
     )
     rebar: str = Field(
         "HRB400", label="楼梯纵筋级别",
-        choices=list(REBAR), group="材料",
+        choices=list(REBAR), group="材料", batch_hidden=True,
     )
 
     # —— 荷载与系数（批量时整组统一设置）——
     q_live: float = Field(3.5, label="楼梯活荷载标准值 q", unit="kN/m²", gt=0,
                           group="荷载与系数")
     gamma0: float = Field(1.0, label="结构重要性系数 γ0", gt=0,
-                          group="荷载与系数")
+                          group="荷载与系数", batch_hidden=True)
     gamma_g: float = Field(1.3, label="恒载分项系数 γG", gt=0,
-                           group="荷载与系数")
+                           group="荷载与系数", batch_hidden=True)
     gamma_q: float = Field(1.5, label="活载分项系数 γQ", gt=0,
-                           group="荷载与系数")
+                           group="荷载与系数", batch_hidden=True)
     psi_q: float = Field(0.4, label="活载准永久值系数 ψq", ge=0, le=1,
-                         group="荷载与系数")
+                         group="荷载与系数", batch_hidden=True)
     step_factor: float = Field(
         0.2, label="踏步刚度系数 λ", ge=0, group="荷载与系数",
         description="挠度计算的等效截面高度 h0'=h0+λ·d·cosα 中的系数",
@@ -134,17 +134,17 @@ class StairParams(BaseModel):
     rho_min: float = Field(0.2, label="楼梯最小配筋率 ρmin", unit="%", gt=0,
                            group="荷载与系数")
     t1: float = Field(30, label="楼梯面层厚度 t1", unit="mm", ge=0,
-                      group="荷载与系数")
+                      group="荷载与系数", batch_hidden=True)
     r1: float = Field(22, label="楼梯面层容重 r1", unit="kN/m³", gt=0,
-                      group="荷载与系数")
+                      group="荷载与系数", batch_hidden=True)
     t2: float = Field(20, label="底面抹灰厚度 t2", unit="mm", ge=0,
-                      group="荷载与系数")
+                      group="荷载与系数", batch_hidden=True)
     r2: float = Field(18, label="底面抹灰容重 r2", unit="kN/m³", gt=0,
-                      group="荷载与系数")
+                      group="荷载与系数", batch_hidden=True)
     r_c: float = Field(25, label="混凝土容重 r", unit="kN/m³", gt=0,
-                       group="荷载与系数")
+                       group="荷载与系数", batch_hidden=True)
     cover: float = Field(15, label="保护层厚度 c", unit="mm", gt=0,
-                         group="荷载与系数")
+                         group="荷载与系数", batch_hidden=True)
     b_a: float = Field(200, label="A端支座宽度 bA", unit="mm", gt=0,
                        group="荷载与系数")
     b_b: float = Field(200, label="B端支座宽度 bB", unit="mm", gt=0,
@@ -168,7 +168,9 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
     alpha = math.atan(p.d / p.a)                     # 梯段板倾角 (rad)
     cos_a = math.cos(alpha)
     L_hor = p.a * p.n                                # 踏步段水平长度 L = a·n (mm)
-    t = max(math.ceil((L_hor + p.L1 + p.L2) / p.k_coef / 10) * 10, 100)  # 板厚(mm)
+    k_auto = 28.0 if p.support == "两端弹性" else 25.0
+    k = p.k_coef if p.k_coef > 0 else k_auto          # 梯板系数：0=按支座形式自动
+    t = max(math.ceil((L_hor + p.L1 + p.L2) / k / 10) * 10, 100)  # 板厚(mm)
     l_n = (L_hor + p.L1 + p.L2) / 1000               # 净跨 (m)
     l0 = min(l_n + (p.b_a + p.b_b) / 2000, 1.05 * l_n)  # 计算跨度 (m)
 
@@ -304,13 +306,14 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         ["A/B端支座宽度 bA/bB", f"{p.b_a:g} / {p.b_b:g} mm",
          "保护层厚度 c", f"{p.cover:g} mm"],
         ["活荷载标准值 q", f"{p.q_live:g} kN/m²", "混凝土等级", p.concrete],
-        ["梯板系数 k", f"{p.k_coef:g}", "纵筋级别", p.rebar],
+        ["梯板系数 k", f"{k:g}（自动）" if p.k_coef == 0 else f"{k:g}", "纵筋级别", p.rebar],
         ["踏步刚度系数 λ", f"{p.step_factor:g}", "梯段板厚度 t（按 k 估算）",
          f"{t:g} mm"],
     ])
-    b.p("梯段板厚度按经验公式估算：板厚 = 向上取整10mm[(a·n+L1+L2)/k]，且不小于 100mm。")
+    b.p("梯段板厚度按经验公式估算：板厚 = 向上取整10mm[(a·n+L1+L2)/k]，且不小于 100mm。"
+        "k 取梯板系数（参数填 0 时按支座形式自动：两端弹性 28 / 下铰上弹 25）。")
     b.formula(r"t = \max\left\{\left\lceil \dfrac{a n + L_1 + L_2}{10\,k} \right\rceil \times 10,\ 100\right\}")
-    b.subs(rf"t = \max\left\{{\left\lceil \dfrac{{{p.a:g} \times {p.n:g} + {p.L1:g} + {p.L2:g}}}{{10 \times {p.k_coef:g}}} \right\rceil \times 10,\ 100\right\}} = {t:g}\ \mathrm{{mm}}")
+    b.subs(rf"t = \max\left\{{\left\lceil \dfrac{{{p.a:g} \times {p.n:g} + {p.L1:g} + {p.L2:g}}}{{10 \times {k:g}}} \right\rceil \times 10,\ 100\right\}} = {t:g}\ \mathrm{{mm}}")
     b.p(f"注：γ0={p.gamma0:g} 仅列出；荷载组合与原表一致，未乘入 γ0。")
 
     b.h2("四、梯段板荷载计算")
