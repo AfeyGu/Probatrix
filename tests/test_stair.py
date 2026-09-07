@@ -71,34 +71,33 @@ def test_default_row_matches_workbook(meta):
 # （l₀ 按意图公式修正为 6.36m，原表因 mm/m 量纲错取 6.468m，其余链路与原表一致）
 # ----------------------------------------------------------------------
 def test_2at1_row_matches_workbook(meta):
-    r = _run(meta, name="2AT1", a=280, d=150, n=22, k_coef=27,
-             support="两端弹性")
+    # 自动梯板系数：两端弹性 k=28 → t=220（原表该行 k=27/t=230，选筋档位一致）
+    r = _run(meta, name="2AT1", a=280, d=150, n=22, support="两端弹性")
     checks = {c["name"]: c for c in r.checks}
-    # l0 = min(6.16+0.2, 6.468) = 6.36（原表 6.468，量纲修正后的意图值）
+    # l0 = min(6.16+0.2, 6.468) = 6.36
     assert "= 6.36" in r.md
-    # M_A = -18.631×6.36²/16 = -47.10 → As=658.5（>ρmin·b·h=460）
-    # → 选 12@150=753.98；跨中 As=1045 → 12@100=1131
+    # 跨中 As=1122 → 12@100=1131；A端 As=681→12@150
     assert r"\Phi12@150" in r.md
     assert r"\Phi12@100" in r.md
-    # 裂缝（手算：ρte=0.01, cs=20，A端 σs=215.6, ψ=0.494）
-    assert checks["A端支座裂缝宽度"]["value"] == pytest.approx(0.1356, rel=1e-3)
-    assert checks["跨中裂缝宽度"]["value"] == pytest.approx(0.1558, rel=1e-3)
-    # 挠度（手算 Bs≈1.219e13/2, f≈24.5），限值 6.36×5=31.8
-    assert checks["跨中挠度"]["value"] == pytest.approx(24.5, rel=1e-2)
+    # 手算锚定：ρte=0.01, cs=20，A端 σs=220.96, ψ=0.5087
+    assert checks["A端支座裂缝宽度"]["value"] == pytest.approx(0.1431, rel=1e-3)
+    assert checks["跨中裂缝宽度"]["value"] == pytest.approx(0.1637, rel=1e-3)
+    # 挠度（手算 Bs≈9.62e12/2，f≈27.2），限值 6.36×5=31.8
+    assert checks["跨中挠度"]["value"] == pytest.approx(27.2, rel=1e-2)
     assert checks["跨中挠度"]["limit"] == pytest.approx(31.8)
     assert r.all_ok is True
 
 
 # ----------------------------------------------------------------------
-# 1ATa1 行：下铰上弹 a=260 d=166.66 n=16 k=30 —— 结构性校验
-# （面层自重按公式修正后荷载与原表略有差异，几何与选筋逻辑不变）
+# 1ATa1 行：下铰上弹 a=260 d=166.66 n=16 —— 结构性校验
+# （自动梯板系数 k=25 → t=170；面层自重按公式修正，不与原表硬编码值对齐）
 # ----------------------------------------------------------------------
 def test_1ata1_row_hinged(meta):
     r = _run(meta, name="1ATa1", support="下铰上弹",
-             a=260, d=166.66, n=16, k_coef=30)
+             a=260, d=166.66, n=16)
     checks = {c["name"]: c for c in r.checks}
-    assert r"= 140\ \mathrm{mm}" in r.md                      # ceil(4160/30/10)×10 = 140
-    assert r"\Phi8@150" in r.md                       # A端 ρmin 控制 → 8@150
+    assert r"= 170\ \mathrm{mm}" in r.md                      # ceil(4160/25/10)×10 = 170
+    assert r"\Phi10@200" in r.md                       # A端 ρmin=340 控制 → 10@200
     assert "该截面弯矩为 0" in r.md                # A端铰支
     assert checks["A端支座裂缝宽度"]["value"] == pytest.approx(0.0, abs=1e-12)
     assert r.all_ok is True
@@ -112,13 +111,14 @@ def test_param_meta(meta):
     metas = {m["name"]: m for m in param_meta(meta.params_model)}
     assert metas["support"]["choices"] == ["两端弹性", "下铰上弹"]
     assert metas["support"]["group"] == "几何"
-    # 梯板系数默认 0=按支座形式自动（两端弹性 28 / 下铰上弹 25）
-    assert metas["k_coef"]["default"] == 0
-    # batch_hidden：默认不显示的列（梯板系数/混凝土等级/分项系数等 12 项）
+    # 梯板系数已移除（按支座形式自动：两端弹性 28 / 下铰上弹 25），不再是参数
+    assert "k_coef" not in metas
+    # batch_hidden：默认不显示的列（混凝土等级/纵筋级别/分项系数等 12 项）
     hidden = [m["name"] for m in metas.values() if m.get("batch_hidden")]
-    assert metas["k_coef"]["batch_hidden"] is True
-    assert "concrete" in hidden and "gamma0" in hidden and "cover" in hidden
+    assert metas["concrete"]["batch_hidden"] is True
+    assert "rebar" in hidden and "gamma0" in hidden and "cover" in hidden
     assert "support" not in hidden and "q_live" not in hidden
+    assert len(hidden) == 12
     assert metas["concrete"]["choices"][0] == "C25"
     assert metas["rebar"]["choices"] == ["HPB300", "HRB400", "HRB500"]
 
