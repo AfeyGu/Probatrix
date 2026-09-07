@@ -32,9 +32,10 @@ export const store = reactive({
   results: {},                   // itemId -> RunResult（单项/批量共用）
   runningIds: new Set(),
 
-  /** 导出偏好：离线版内嵌 KaTeX（~0.7 MB/文件，断网可看） */
+  /** 导出偏好：离线版内嵌 KaTeX（~0.7 MB/文件，断网可看）；界面主题（浅色多套） */
   pref: {
     offlineExport: localStorage.getItem('calcbook.offline') === '1',
+    theme: localStorage.getItem('calcbook.theme') || 'notion',
   },
 })
 
@@ -42,6 +43,18 @@ export function setOfflineExport(v) {
   store.pref.offlineExport = v
   localStorage.setItem('calcbook.offline', v ? '1' : '0')
 }
+
+/** 主题切换 = 换一组 --cb-* 变量值（见 App.vue 的 data-theme 块） */
+export function setTheme(t) {
+  store.pref.theme = t
+  localStorage.setItem('calcbook.theme', t)
+  applyTheme(t)
+}
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t
+}
+applyTheme(store.pref.theme)
 
 const runDebounced = {}
 const syncNow = () => api.putProject(currentDoc()).catch(() => {})
@@ -184,6 +197,25 @@ export function deleteItem(id) {
 
 /** 改了名字等非参数内容：标记变更并延迟回写 */
 export function touch() {
+  syncDebounced()
+}
+
+/** 上移/下移：与同模板相邻的计算项交换位置（dir: -1 上移 / 1 下移） */
+export function moveItem(templateId, id, dir) {
+  const items = store.project.items
+  const idx = items.findIndex(i => i.id === id)
+  if (idx < 0) return
+  let j = idx
+  if (dir < 0) {
+    for (let k = idx - 1; k >= 0; k--)
+      if (items[k].template_id === templateId) { j = k; break }
+  } else {
+    for (let k = idx + 1; k < items.length; k++)
+      if (items[k].template_id === templateId) { j = k; break }
+  }
+  if (j === idx) return                       // 已在顶部/底部
+  const [it] = items.splice(idx, 1)
+  items.splice(j, 0, it)
   syncDebounced()
 }
 

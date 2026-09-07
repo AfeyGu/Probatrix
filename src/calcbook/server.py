@@ -13,6 +13,7 @@
     POST   /api/project/save             保存到 .cbproj
     POST   /api/project/load             从 .cbproj 载入
     GET    /api/hash-check               工程内模板 hash 与当前文件比对（失效提示）
+    GET    /api/doc.css                  计算书文档排版 CSS（前端预览用）
     POST   /api/export/html              md → 自包含 HTML（KaTeX + 打印样式）
 """
 
@@ -29,9 +30,11 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as APIModel
 
+from .docstyle import DOC_CSS
 from .engine import RunResult, run_template
 from .fields import param_meta
 from .loader import TemplateLoader
@@ -47,19 +50,11 @@ _HTML_TMPL = """<!DOCTYPE html>
 <title>@@TITLE@@</title>
 @@ASSETS@@
 <style>
-  body { font: 15px/1.75 "Source Han Serif SC", "Noto Serif SC", SimSun, serif;
-         max-width: 210mm; margin: 0 auto; padding: 24px 32px; color: #111; }
+@@DOCSTYLE@@
+  body { max-width: 210mm; margin: 0 auto; padding: 24px 32px; }
   .meta { border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 20px;
           font-size: 14px; color: #444; }
   .meta b { margin-right: 24px; }
-  table { border-collapse: collapse; margin: 12px 0; width: 100%; }
-  th, td { border: 1px solid #999; padding: 4px 10px; text-align: left; }
-  th { background: #f2f2f2; }
-  blockquote { margin: 4px 0; padding: 2px 12px; color: #555;
-               border-left: 3px solid #bbb; font-size: 13px; }
-  code { background: #f5f5f5; padding: 1px 4px; }
-  img { max-width: 100%; }
-  h1 { font-size: 22px; } h2 { font-size: 18px; } h3 { font-size: 16px; }
   @media print {
     body { padding: 0; }
     .no-print { display: none; }
@@ -67,7 +62,7 @@ _HTML_TMPL = """<!DOCTYPE html>
   }
 </style>
 </head>
-<body>
+<body class="cb-doc">
 <div class="meta">@@META@@</div>
 <div class="no-print" style="text-align:right;margin-bottom:8px">
   <button onclick="window.print()">打印 / 存为 PDF</button>
@@ -297,6 +292,7 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
                 .replace("@@TITLE@@", html.escape(req.title))
                 .replace("@@ASSETS@@", assets)
                 .replace("@@META@@", meta_cells)
+                .replace("@@DOCSTYLE@@", DOC_CSS)
                 .replace("@@CONTENT@@", _render_markdown(req.md)))
         return {"html": page, "inline": str(req.inline_assets)}
 
@@ -304,6 +300,11 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
     @app.post("/api/render")
     def render(req: RenderReq) -> dict[str, str]:
         return {"html": _render_markdown(req.md)}
+
+    # ---- 文档排版 CSS：前端预览与导出共用 docstyle.DOC_CSS ---------------
+    @app.get("/api/doc.css")
+    def doc_css() -> Response:
+        return Response(DOC_CSS, media_type="text/css")
 
     # 前端：构建产物在包内 calcbook/web（由 vite 输出），有则静态托管
     dist = Path(__file__).resolve().parent / "web"
