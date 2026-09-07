@@ -502,26 +502,9 @@ def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str
         except OSError:
             time.sleep(0.1)
 
-    w, h = _window_size()
-    webview.create_window("CalcBook 计算书", url, width=w, height=h)
+    webview.create_window("CalcBook 计算书", url, width=1536, height=846)
     webview.start()
     server.should_exit = True
-
-
-def _window_size() -> tuple[int, int]:
-    """默认窗口大小：屏幕工作区的 90%（接近常见的浏览器窗口体量）。"""
-    try:
-        import ctypes.wintypes
-        rc = ctypes.wintypes.RECT()
-        ctypes.windll.user32.SystemParametersInfoW(
-            0x0030, 0, ctypes.byref(rc), 0)  # SPI_GETWORKAREA
-        w = int((rc.right - rc.left) * 0.9)
-        h = int((rc.bottom - rc.top) * 0.9)
-        if w > 200 and h > 200:
-            return w, h
-    except Exception:
-        pass
-    return 1280, 800
 
 
 if __name__ == "__main__":
