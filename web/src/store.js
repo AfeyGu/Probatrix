@@ -64,6 +64,7 @@ const syncDebounced = debounce(syncNow, 800)      // 工程变更自动回写服
 export async function init() {
   await loadTemplates()
   await pullProject()                             // 恢复服务端持有的工程
+  await restoreFileHandle()                       // 恢复上次保存位置（可原地覆写）
   const first = store.project.items[0]
   const target = first?.template_id ?? store.templates[0]?.template_id
   if (target) await selectTemplate(target)
@@ -309,15 +310,87 @@ export function downloadFile(filename, content, mime = 'application/json') {
   URL.revokeObjectURL(a.href)
 }
 
-export function saveProjectAs() {
-  downloadFile(`${store.project.name || '工程'}.cbproj`,
-    JSON.stringify(currentDoc(), null, 2))
+// ---------------- 工程文件：File System Access API 原地保存 ----------------
+// 首次保存弹原生「另存为」，之后每次保存直接覆写同一文件，像本地软件；
+// 句柄存 IndexedDB，刷新页面后仍记得上次存哪。不支持的浏览器回退下载。
+export const fsPickSupported = typeof window !== 'undefined' && 'showSaveFilePicker' in window
+
+let fileHandle = null
+
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('calcbook', 1)
+    req.onupgradeneeded = () => req.result.createObjectStore('kv')
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
 }
 
+async function idbSet(key, val) {
+  const db = await idb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite')
+    tx.objectStore('kv').put(val, key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+async function idbGet(key) {
+  const db = await idb()
+  return new Promise((resolve, reject) => {
+    const req = db.transaction('kv', 'readonly').objectStore('kv').get(key)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function ensurePermission(handle) {
+  if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true
+  return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted'
+}
+
+async function writeProjectTo(handle) {
+  const writable = await handle.createWritable()
+  await writable.write(JSON.stringify(currentDoc(), null, 2))
+  await writable.close()
+}
+
+async function restoreFileHandle() {
+  if (!fsPickSupported) return
+  try { fileHandle = (await idbGet('cbproj-handle')) || null } catch { fileHandle = null }
+}
+
+/** 保存工程：有句柄则原地覆写；无句柄弹原生另存为。返回文件名，回退下载返回 null。 */
+export async function saveProjectAs() {
+  if (!fsPickSupported) {
+    downloadFile(`${store.project.name || '工程'}.cbproj`, JSON.stringify(currentDoc(), null, 2))
+    return null
+  }
+  if (fileHandle) {
+    if (!(await ensurePermission(fileHandle))) throw new Error('未获得文件写入权限')
+    await writeProjectTo(fileHandle)
+    return fileHandle.name
+  }
+  fileHandle = await window.showSaveFilePicker({
+    suggestedName: `${store.project.name || '工程'}.cbproj`,
+    types: [{ description: 'CalcBook 工程', accept: { 'application/json': ['.cbproj', '.json'] } }],
+  })
+  await writeProjectTo(fileHandle)
+  await idbSet('cbproj-handle', fileHandle)
+  return fileHandle.name
+}
+
+/** 打开工程：file 为 File（input 回退）或 FileSystemFileHandle（picker，可原地保存） */
 export async function openProjectFile(file) {
-  const text = await file.text()
-  const doc = JSON.parse(text)                 // 解析失败让上层提示
+  const handle = file?.getFile ? file : null
+  const blob = handle ? await handle.getFile() : file
+  const doc = JSON.parse(await blob.text())       // 解析失败让上层提示
   await putProject(doc)
+  if (handle) {
+    fileHandle = handle
+    await idbSet('cbproj-handle', handle)
+  }
   const first = store.project.items[0]
   if (first) {
     await selectTemplate(first.template_id)
@@ -325,12 +398,14 @@ export async function openProjectFile(file) {
   }
 }
 
-/** 新建空白工程 */
+/** 新建空白工程：脱离当前文件，下次保存会弹另存为 */
 export async function newBlankProject() {
   store.project = { name: '未命名工程', items: [], views: {} }
   store.results = {}
   store.staleIds = new Set()
   store.activeItemId = null
+  fileHandle = null
+  if (fsPickSupported) { try { await idbSet('cbproj-handle', null) } catch { /* 忽略 */ } }
   syncNow()
 }
 

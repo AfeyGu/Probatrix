@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { store, refreshTemplates, selectTemplate, setView, addItem,
          saveProjectAs, openProjectFile, exportProjectHtml,
-         newBlankProject, touch, setOfflineExport, setTheme } from './store'
+         newBlankProject, touch, setOfflineExport, setTheme, fsPickSupported } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
 
@@ -33,6 +33,33 @@ async function onOpenFile(ev) {
     ElMessage.success(`已打开：${store.project.name}`)
   } catch (e) {
     ElMessage.error(`打开失败：${e.message}`)
+  }
+}
+
+/** 打开工程：支持 FS Access 的浏览器用原生打开对话框（拿到可写句柄，保存可原地覆写） */
+async function onOpenProject() {
+  if (fsPickSupported) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: 'CalcBook 工程', accept: { 'application/json': ['.cbproj', '.json'] } }],
+      })
+      await openProjectFile(handle)
+      ElMessage.success(`已打开：${store.project.name}`)
+    } catch (e) {
+      if (e.name !== 'AbortError') ElMessage.error(`打开失败：${e.message}`)
+    }
+  } else {
+    fileInput.value?.click()
+  }
+}
+
+async function onSaveProject() {
+  try {
+    const name = await saveProjectAs()
+    if (name) ElMessage.success(`已保存到 ${name}`)
+    else ElMessage.success('工程文件已下载')
+  } catch (e) {
+    if (e.name !== 'AbortError') ElMessage.error(`保存失败：${e.message}`)
   }
 }
 
@@ -86,8 +113,8 @@ function ratioOf(item) {
       <div class="hgroup">
         <el-button @click="onNewProject">新建</el-button>
         <input ref="fileInput" type="file" accept=".cbproj,.json" hidden @change="onOpenFile" />
-        <el-button @click="fileInput?.click()">打开</el-button>
-        <el-button @click="saveProjectAs()">保存工程</el-button>
+        <el-button @click="onOpenProject">打开</el-button>
+        <el-button @click="onSaveProject">保存工程</el-button>
       </div>
       <div class="hgroup">
         <el-select v-model="store.currentTemplateId" class="tpl-select"
