@@ -66,8 +66,9 @@ export async function init() {
   await pullProject()                             // 恢复服务端持有的工程
   await restoreFileHandle()                       // 恢复上次保存位置（可原地覆写）
   const first = store.project.items[0]
-  const target = first?.template_id ?? store.templates[0]?.template_id
-  if (target) await selectTemplate(target)
+  // 只有恢复出计算项才选中其模板；空白启动不默认建项，
+  // 界面停留在「选择模板后开始计算」空态，由用户自选模板
+  if (first?.template_id) await selectTemplate(first.template_id)
 }
 
 async function pullProject() {

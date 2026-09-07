@@ -103,6 +103,23 @@ function ratioText(r) {
   return r.max_ratio == null ? null : r.max_ratio.toFixed(2)
 }
 
+// ---- 结果指标列（模板经 b.metric() 输出，如 A端支座配筋）----
+// 取当前模板所有行结果中出现过指标名的并集，按首次出现顺序排列
+const metricKeys = computed(() => {
+  const keys = []
+  for (const it of items.value) {
+    const m = store.results[it.id]?.metrics
+    if (!m) continue
+    for (const k of Object.keys(m)) if (!keys.includes(k)) keys.push(k)
+  }
+  return keys
+})
+function metricMinW(k) {
+  let w = 0
+  for (const ch of k) w += ch.charCodeAt(0) > 255 ? 14 : 7
+  return Math.max(88, Math.ceil(w) + 24)
+}
+
 // 列最小宽度 = 表头文字单行宽度（拖动不可低于此值，保证单行显示）
 function colMinW(p) {
   const text = (p.label || p.name) + (p.unit || '')
@@ -204,6 +221,13 @@ async function onExportRow(row) {
         </template>
       </el-table-column>
 
+      <el-table-column v-for="k in metricKeys" :key="k" :min-width="metricMinW(k)">
+        <template #header>{{ k }}</template>
+        <template #default="{ row }">
+          <span class="metric-cell">{{ store.results[row.id]?.metrics?.[k] ?? '' }}</span>
+        </template>
+      </el-table-column>
+
       <el-table-column label="操作" width="174" fixed="right">
         <template #default="{ row }">
           <el-button size="small" text type="primary" title="上移"
@@ -271,6 +295,8 @@ async function onExportRow(row) {
 .grid :deep(.el-scrollbar__bar.is-horizontal) { display: block !important; opacity: 1; height: 10px; }
 .grid :deep(.el-input__inner), .grid :deep(.el-input-number__decreasing),
 .grid :deep(.el-input-number__increasing) { text-align: left; }
+/* 结果指标列：纯文本，随全局单行规则即可，稍微收紧字号 */
+.metric-cell { font-size: 13px; }
 .num { width: 100%; }
 .ok { color: var(--cb-ok); }
 .over { color: var(--cb-bad); }
