@@ -58,23 +58,25 @@ def assemble(exe: Path, whl: Path, tag: str) -> Path:
     shutil.copy2(whl, APP / whl.name)
     for tpl in sorted((ROOT / "examples").glob("*.py")):
         shutil.copy2(tpl, APP / "examples" / tpl.name)
+    shutil.copytree(ROOT / "docs", APP / "docs")  # 模板开发指南
     (APP / "使用说明.txt").write_text(
         f"""CalcBook {tag} 预览版（离线包）
 
 使用：
-  1. 双击 launcher.exe。本机需已安装 Python 3.11+；
-     没有的话会引导你去 python.org 下载安装。
-  2. 首次运行会联网安装 calcbook 及其依赖库（仅首次），
-     之后每次双击直接启动，自动打开浏览器。
-  3. 进阶：命令行运行 calcbook serve --ui webview 可改用桌面窗口
-     （需先 python -m pip install pywebview）。
+  1. 解压整个压缩包后，双击 launcher.exe。
+  2. 本机需有 Python 3.11+；没有的话程序会从国内镜像自动下载并安装
+     （首次约需几分钟）。
+  3. 首次运行会联网安装 calcbook 及其依赖到包目录 venv/（仅首次），
+     之后每次双击直接启动桌面窗口。
+  4. 运行中黑窗自动隐藏；出问题可查看日志 launcher.log。
 
 文件说明：
-  calcbook-{tag}-py3-none-any.whl  —— 程序本体，launcher 自动安装
-  venv/（首次运行自动生成）      —— 虚拟环境：calcbook 及依赖都装在
-                                     包目录内，不写入系统 Python，
-                                     删掉整个文件夹即完全卸载
-  examples/                        —— 计算书模板（gl 梁、stair 楼梯）
+  launcher.exe               —— 启动器
+  calcbook-{tag}-py3-none-any.whl —— 程序本体，launcher 自动安装
+  venv/（首次运行自动生成）     —— 虚拟环境：calcbook 及依赖都装在包目录内，
+                                  不写入系统 Python，删掉整个文件夹即完全卸载
+  examples/                    —— 计算书示例模板（gl 梁、stair 楼梯）
+  docs/模板开发指南.md         —— 模板开发指南（学习写自己的模板）
 """, encoding="utf-8")
     print("==> 压缩 zip")
     import zipfile

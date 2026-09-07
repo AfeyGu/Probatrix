@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import re
 import shutil
@@ -27,7 +28,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-EXPECTED_VERSION = "0.1.0a4"
+EXPECTED_VERSION = "0.1.0a5"
 MIN_VERSION = (3, 11)
 PIP_INDEX = os.environ.get(
     "CALCBOOK_PIP_INDEX", "https://mirrors.aliyun.com/pypi/simple")
@@ -47,10 +48,27 @@ def log(msg: str) -> None:
     print(f"[calcbook 启动器] {msg}", flush=True)
 
 
+def _msgbox(text: str, title: str = "CalcBook", style: int = 0x40) -> None:
+    """弹窗提示（黑窗隐藏时 print 不可见，错误/提示走 MessageBox）。"""
+    try:
+        ctypes.windll.user32.MessageBoxW(None, text, title, style)
+    except Exception:
+        print(text, flush=True)
+
+
 def fatal(msg: str) -> int:
-    print(f"\n{msg}\n", flush=True)
-    input("按回车退出…")
+    _msgbox(f"{msg}\n\n（点击确定退出）", "CalcBook 启动失败", 0x10)  # MB_ICONERROR
     return 1
+
+
+def hide_console() -> None:
+    """隐藏启动器黑窗（服务就绪后调用；窗口隐藏时任务栏按钮一并消失）。"""
+    try:
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+    except Exception:
+        pass
 
 
 def _parse_version(out: str) -> tuple[int, int] | None:
@@ -228,11 +246,19 @@ def main() -> int:
     if not examples.is_dir():
         return fatal("缺少 examples/ 模板目录，请把离线包完整解压后再运行。")
 
+    log_file = base / "launcher.log"
+    try:  # 输出进日志文件：黑窗隐藏后仍可排障
+        sys.stdout = sys.stderr = open(log_file, "w", encoding="utf-8")
+    except OSError:
+        pass
+
     log("正在查找本机 Python…")
     py = pick_python()
     if py is None:
+        _msgbox("本机未安装 Python。\n\n点击确定后，将自动从国内镜像下载并安装"
+                "（约 25 MB，需几分钟），完成后自动继续启动。")
         log(f"未找到 Python {MIN_VERSION[0]}.{MIN_VERSION[1]}+，"
-            "正在从华为云镜像下载并安装最新版（约 25 MB）…")
+            "正在从华为云镜像下载并安装最新版…")
         py = install_python()
     if py is None:
         return fatal("Python 安装未完成。已为你打开 python.org 官网，"
@@ -242,9 +268,12 @@ def main() -> int:
     if not ensure_venv(py, base, wheel):
         return 1
 
-    log(f"启动服务（桌面窗口模式），模板目录：{examples}\n")
-    return subprocess.run([str(venv_python(base)), "-m", "calcbook.cli", "serve",
-                           "--ui", "webview", "--templates", str(examples)]).returncode
+    hide_console()  # 一切就绪：隐藏黑窗，只留桌面窗口
+    log(f"启动服务（桌面窗口模式），模板目录：{examples}")
+    with open(log_file, "a", encoding="utf-8") as f:
+        return subprocess.run([str(venv_python(base)), "-m", "calcbook.cli", "serve",
+                               "--ui", "webview", "--templates", str(examples)],
+                              stdout=f, stderr=subprocess.STDOUT).returncode
 
 
 if __name__ == "__main__":
