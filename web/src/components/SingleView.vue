@@ -133,6 +133,7 @@ function controlType(p) {
 .pane { flex: 1; overflow: auto; background: var(--cb-surface);
         border: 1px solid var(--cb-border); border-radius: 8px;
         box-shadow: 0 1px 2px rgba(0, 0, 0, .05); padding: 16px; }
+.preview-pane { flex: 1.618; } /* 预览 : 设置 = 0.618 : 0.382（黄金比） */
 .pane-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .item-name { width: 200px; }
 .group-name { font-weight: 600; }
