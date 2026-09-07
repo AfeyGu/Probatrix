@@ -6,7 +6,7 @@ CalcBook——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端�
 
 ```bash
 pip install -e .                      # 可编辑安装（改后端代码即时生效）
-python -m pytest tests -q             # 全部测试（37 个：契约/后端/API 三层）
+python -m pytest tests -q             # 全部测试（38 个：契约/后端/API 三层）
 python -m pytest tests/test_server.py::test_run_batch -q   # 单个测试
 
 calcbook serve --templates examples --port 8317 --no-browser   # 起本地服务
@@ -33,10 +33,14 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
   → calcbook.py  CalcBook Builder：formula/subs/check/cite/image/table → Markdown+LaTeX；
                  check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio
   → server.py    FastAPI：/api/templates、/api/run(-batch)、/api/project、/api/hash-check、
-                 /api/render、/api/export/html；静态托管 src/calcbook/web
+                 /api/render、/api/export/html、/api/doc.css（文档排版 CSS，预览用）；
+                 静态托管 src/calcbook/web
   → web/ (Vue3)  store.js 单一状态源；参数变更防抖 300ms 自动重算；工程 800ms 防抖回写服务端
-                 （刷新页面不丢）；导出走 api.exportHtml，勾选离线版则 inline_assets=true
+                 （刷新页面不丢）；导出走 api.exportHtml，勾选离线版则 inline_assets=true；
+                 界面主题/离线偏好存 localStorage
   → project.py   .cbproj 纯 JSON：items[{id,name,template_id,template_hash,params,deps}] + views
+  → docstyle.py  计算书文档排版 CSS（.cb-doc）唯一定义处：预览经 /api/doc.css 加载，
+                 导出模板注入 @@DOCSTYLE@@——保证所见即所得，不要在别处复制这份样式
 ```
 
 ## 关键设计决定（改代码前先读 `计算书工具文档.md`）
@@ -48,12 +52,24 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **离线导出只内联 woff2**：woff/ttf 加上会到 1.73 MB，不划算；vendor 目录只备 css+2js+20 个 woff2。
 - **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。md→HTML 渲染必须**先剥前缀再 html.escape**（回归教训：`> 依据` 变 `t; 依据`），粗体 `**…**` 在 `_inline()` 处理。
 
+## 界面设计系统（Notion 风，改样式前先看这段）
+
+- **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布/表面/hover/文字/语义色），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
+- **主题切换 = 换 `data-theme` 属性下的 token 组**（现有米白/纯白/亚麻三套浅色，暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。
+- EP 的 `--el-color-primary-light-3/5/7/8/9`、`-dark-2` 是编译期字面量，**换主色必须逐个覆盖**，只改 `--el-color-primary` 会让 plain 按钮/标签还是旧色。
+- Notion 风硬规则：禁渐变、禁大圆角（>8px）、禁重阴影、禁 translate/scale 动画；过渡只允许 background/border-color 150ms；按钮透明底、hover 仅背景变 `--cb-hover`、active `--cb-active`。
+- 双密度：批量表格保持紧凑（small/13px/单行），其余界面 14px 带呼吸感；批量表格列 min-width 由表头文字单行宽度算出（`colMinW`），单元格 nowrap。
+- 文档预览区（.cb-doc）是正式纸感（衬线/黑白），与界面风格刻意分区——预览必须与导出一致，改排版只改 `docstyle.py`。
+
 ## 前端易错点（都踩过）
 
 - **store 里往 items 塞对象后必须返回数组里的元素**（`store.project.items[len-1]`）——push 进 reactive 数组的原始对象赋值会绕过代理、界面不刷新（数据对、显示错，极难排查）。
 - `web/src/main.js` 用独立导出的 `init()`，不是 `store.init()`。
 - 刷新/切模板后对无缓存结果的项要 `scheduleRun` 补算，否则导出报「没有可导出的结果」。
 - Element Plus 2.9 的 el-select 选中值不在 `input.value` 里，读 DOM 验证用 `.el-select__wrapper` 的 textContent。
+- **EP 的 el-scrollbar 滚动条默认 hover 才显示**（v-show 的 display:none）——要常显必须 `display:block !important`，只覆盖 opacity 无效；thumb 宽度由 EP 在 resize/scroll 时计算，改容器宽度后要触发 window resize 才会更新。
+- **BatchView 的控件类型函数是 `cellType`，SingleView 的是 `controlType`**——同名不同文件，混用会运行时白屏（踩过：统一设置弹窗空白）。
+- 读 el-table 样式别读根元素的 borderColor——未设置的边 fallback 到 currentColor，会误判成深色；要看 td/th 具体边的 style+width+color。
 - label 里包 el-button **不会**触发关联 file input（交互元素拦截转发），要用 `input.click()`。
 
 ## Git 约定
