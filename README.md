@@ -60,10 +60,11 @@ def calc(p: GLParams) -> CalcBook:
 ```
 
 `b.check()` 会在正文输出判定行，并在计算书末尾自动汇总「验算结论」表；
+`b.metric(name, 值)` 可为批量表格追加结果指标列（如选筋结果）；
 批量表格每行也会显示最大应力比（超限标红）。
 
 CalcBook 可用方法：`h1/h2/h3` 标题、`p` 文字、`formula` 符号公式、`subs` 代入式、
-`check` 验算、`image_bytes` 插图（matplotlib 截面/计算简图）、`table` 自由表格。
+`check` 验算、`metric` 批量结果指标列、`image_bytes` 插图（matplotlib 截面/计算简图）、`table` 自由表格。
 
 ### 单位纪律
 

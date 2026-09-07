@@ -192,7 +192,7 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
     @app.post("/api/run")
     def run(req: RunReq) -> dict[str, Any]:
         entry = ctx.ensure_template(req.template_id)
-        result = run_template(entry.meta, req.params)
+        result = run_template(entry.meta, req.params, name=req.name)
         return _result_json(result)
 
     @app.post("/api/run-batch")
@@ -201,7 +201,7 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
         return {
             "results": [
                 {"id": it.name or str(i), **_result_json(
-                    run_template(entry.meta, it.params))}
+                    run_template(entry.meta, it.params, name=it.name))}
                 for i, it in enumerate(req.items)
             ],
         }
@@ -365,7 +365,7 @@ def _katex_inline_assets() -> tuple[str, str, str]:
 
 def _result_json(r: RunResult) -> dict[str, Any]:
     return {
-        "ok": r.ok, "md": r.md, "checks": r.checks,
+        "ok": r.ok, "md": r.md, "checks": r.checks, "metrics": r.metrics,
         "max_ratio": r.max_ratio, "all_ok": r.all_ok,
         "error_title": r.error_title, "error": r.error,
     }
@@ -417,6 +417,10 @@ def _render_markdown(md: str) -> str:
                 out.append(
                     f"<p style='text-align:center'>"
                     f"<img src='{_esc(src)}' alt='{_esc(alt)}'></p>")
+                if alt and alt != "图":          # 小注随 alt 传递，居中显示
+                    out.append(
+                        f"<p style='text-align:center'>"
+                        f"<small>{_inline(alt)}</small></p>")
             else:
                 out.append(f"<p>{_inline(line)}</p>")
     if in_table:

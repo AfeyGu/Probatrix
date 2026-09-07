@@ -24,6 +24,7 @@ class RunResult:
     ok: bool = False
     md: str = ""                                # CalcBook 渲染的 md+LaTeX
     checks: list[dict[str, Any]] = field(default_factory=list)   # 供表格/汇总
+    metrics: dict[str, Any] = field(default_factory=dict)        # 批量表格附加指标列
     max_ratio: float | None = None
     all_ok: bool | None = None
     error_title: str = ""                       # 简短错误标题，如「参数校验失败」
@@ -31,6 +32,7 @@ class RunResult:
 
     def from_book(self, book: Any) -> "RunResult":
         self.md = book.to_markdown()
+        self.metrics = dict(getattr(book, "metrics", {}) or {})
         self.checks = [
             {
                 "name": c.name,
@@ -60,8 +62,12 @@ class RunError(Exception):
         return f"{self.title}\n{self.detail}"
 
 
-def run_template(meta: TemplateMeta, params_data: dict[str, Any]) -> RunResult:
-    """用参数字典运行模板；永不抛异常，失败信息在 RunResult 里。"""
+def run_template(meta: TemplateMeta, params_data: dict[str, Any],
+                 name: str = "") -> RunResult:
+    """用参数字典运行模板；永不抛异常，失败信息在 RunResult 里。
+
+    name：计算项名称（批量行的「名称」列），模板声明了可选 name 形参时传入。
+    """
     try:
         params = meta.make_params(params_data)
     except ValidationError as e:
@@ -70,7 +76,7 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any]) -> RunResult:
             error=f"{e.title}\n{e}",
         )
     try:
-        book = meta.run(params)
+        book = meta.run(params, name=name)
     except Exception:
         return RunResult(
             error_title="计算出错",

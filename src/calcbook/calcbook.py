@@ -57,6 +57,7 @@ class CalcBook:
     def __init__(self, title: str | None = None) -> None:
         self.title = title
         self._items: list[_Item] = []
+        self.metrics: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # 结构与小节
@@ -112,6 +113,17 @@ class CalcBook:
     # ------------------------------------------------------------------
     def table(self, header: list[str], rows: list[list[Any]]) -> "CalcBook":
         self._items.append(_Item(kind="table", header=header, rows=rows))
+        return self
+
+    # ------------------------------------------------------------------
+    # 批量表格附加指标：不进正文，随 RunResult 送到前端作动态结果列
+    # ------------------------------------------------------------------
+    def metric(self, name: str, value: Any) -> "CalcBook":
+        """声明一个结果指标（如 b.metric("A端支座配筋", "Φ8@200")）。
+
+        批量视图会为出现过的指标名动态增加结果列；同名指标全行共用一列。
+        """
+        self.metrics[name] = value
         return self
 
     # ------------------------------------------------------------------
@@ -186,8 +198,6 @@ class CalcBook:
             elif it.kind == "image":
                 alt = it.caption or "图"
                 lines += [f"![{alt}]({it.path})", ""]
-                if it.caption:
-                    lines += [f"<div align=\"center\">{it.caption}</div>", ""]
             elif it.kind == "table":
                 lines += self._render_table(it.header, it.rows)
 
@@ -223,22 +233,25 @@ class CalcBook:
         return out + [""]
 
     def _render_summary(self) -> list[str]:
+        has_cite = any(c.cite for c in self.checks)
         rows = []
         for c in self.checks:
             sym = "≤" if c.op == "le" else "≥"
             unit = f" {c.unit}" if c.unit else ""
             verdict = "满足" if c.passed else "**不满足**"
-            cite = f"{c.cite[0]} {c.cite[1]}" if c.cite else ""
-            rows.append([
+            row = [
                 c.name,
                 f"{_fmt(c.value)} {sym} {_fmt(c.limit)}{unit}",
                 _fmt(c.ratio),
                 verdict,
-                cite,
-            ])
-        return self._render_table(
-            ["验算项", "数值", "应力比", "结论", "依据"], rows
-        )
+            ]
+            if has_cite:
+                row.append(f"{c.cite[0]} {c.cite[1]}" if c.cite else "")
+            rows.append(row)
+        header = ["验算项", "数值", "应力比", "结论"]
+        if has_cite:
+            header.append("依据")
+        return self._render_table(header, rows)
 
 
 def _fmt(v: float | None) -> str:

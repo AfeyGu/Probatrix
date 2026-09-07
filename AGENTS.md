@@ -6,7 +6,7 @@ CalcBook——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端�
 
 ```bash
 pip install -e .                      # 可编辑安装（改后端代码即时生效）
-python -m pytest tests -q             # 全部测试（38 个：契约/后端/API 三层）
+python -m pytest tests -q             # 全部测试（44 个：契约/后端/API + stair 模板回归）
 python -m pytest tests/test_server.py::test_run_batch -q   # 单个测试
 
 calcbook serve --templates examples --port 8317 --no-browser   # 起本地服务
@@ -28,10 +28,12 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 模板文件（examples/gl.py）
   → loader.py    目录扫描，importlib 导入（报错隔离到 errors，不打断其他文件），
                  收集 __calcbook_template__ 标记，填 template_id = "文件名.函数名"，算 sha256
-  → engine.py    run_template(meta, params_dict)：校验（pydantic）→ 执行 → 永不抛异常，
-                 失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）
+  → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
+                 失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
+                 模板函数声明可选 name 形参时，计算项「名称」作项目编号传入
   → calcbook.py  CalcBook Builder：formula/subs/check/cite/image/table → Markdown+LaTeX；
-                 check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio
+                 check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio；
+                 metric(name, 值)：批量表格附加指标列（不进正文，随 RunResult.metrics 到前端动态成列）
   → server.py    FastAPI：/api/templates、/api/run(-batch)、/api/project、/api/hash-check、
                  /api/render、/api/export/html、/api/doc.css（文档排版 CSS，预览用）；
                  静态托管 src/calcbook/web
@@ -45,6 +47,9 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 
 ## 关键设计决定（改代码前先读 `计算书工具文档.md`）
 
+- **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
+  同轮同步相关 md（`AGENTS.md` 架构图、`计算书工具文档.md`、`docs/模板开发指南.md`、
+  `README.md`），不能只改代码。
 - **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。

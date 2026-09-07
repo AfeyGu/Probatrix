@@ -33,12 +33,15 @@ class TemplateMeta:
     description: str = ""
     manual: bool = False                       # 仅手动计算开关（迭代试算类模板）
     template_id: str = ""                      # 加载时由加载器填：「文件名.函数名」
+    accepts_name: bool = False                 # 模板函数声明了可选 name 形参时为 True
 
     def make_params(self, data: dict[str, Any]) -> BaseModel:
         """用参数 JSON 构造参数实例（校验失败抛 pydantic.ValidationError）。"""
         return self.params_model.model_validate(data)
 
-    def run(self, params: BaseModel) -> Any:
+    def run(self, params: BaseModel, name: str = "") -> Any:
+        if self.accepts_name:
+            return self.func(params, name=name)
         return self.func(params)
 
 
@@ -63,6 +66,7 @@ def template(
             params_model=params_model,
             description=description,
             manual=manual,
+            accepts_name="name" in inspect.signature(func).parameters,
         )
         return func
 
