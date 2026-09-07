@@ -9,6 +9,6 @@ from .calcbook import CalcBook
 from .fields import Field, param_meta
 from .template import TemplateMeta, template
 
-__version__ = "0.1.0a7"
+__version__ = "0.1.0a8"
 
 __all__ = ["CalcBook", "Field", "param_meta", "template", "TemplateMeta"]

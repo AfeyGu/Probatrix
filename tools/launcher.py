@@ -28,7 +28,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-EXPECTED_VERSION = "0.1.0a7"
+EXPECTED_VERSION = "0.1.0a8"
 MIN_VERSION = (3, 11)
 PIP_INDEX = os.environ.get(
     "CALCBOOK_PIP_INDEX", "https://mirrors.aliyun.com/pypi/simple")
@@ -49,7 +49,7 @@ def log(msg: str) -> None:
 
 
 def _msgbox(text: str, title: str = "CalcBook", style: int = 0x40) -> None:
-    """弹窗提示（黑窗隐藏时 print 不可见，错误/提示走 MessageBox）。"""
+    """弹窗提示（错误/重要提示在终端之外再弹一次）。"""
     try:
         ctypes.windll.user32.MessageBoxW(None, text, title, style)
     except Exception:
@@ -57,18 +57,33 @@ def _msgbox(text: str, title: str = "CalcBook", style: int = 0x40) -> None:
 
 
 def fatal(msg: str) -> int:
+    print(f"\n{msg}\n", flush=True)
     _msgbox(f"{msg}\n\n（点击确定退出）", "CalcBook 启动失败", 0x10)  # MB_ICONERROR
     return 1
 
 
-def hide_console() -> None:
-    """隐藏启动器黑窗（服务就绪后调用；窗口隐藏时任务栏按钮一并消失）。"""
-    try:
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-    except Exception:
-        pass
+class _Tee:
+    """终端 + 日志文件双写：黑窗里能看到启动/出错信息，launcher.log 留底。"""
+
+    def __init__(self, path: Path):
+        self._file = open(path, "w", encoding="utf-8")  # 每次运行重写，避免无限累积
+
+    def write(self, s: str) -> int:
+        try:
+            sys.__stdout__.write(s)
+            sys.__stdout__.flush()
+        except Exception:
+            pass
+        self._file.write(s)
+        self._file.flush()
+        return len(s)
+
+    def flush(self) -> None:
+        try:
+            sys.__stdout__.flush()
+        except Exception:
+            pass
+        self._file.flush()
 
 
 def _parse_version(out: str) -> tuple[int, int] | None:
@@ -247,8 +262,8 @@ def main() -> int:
         return fatal("缺少 examples/ 模板目录，请把离线包完整解压后再运行。")
 
     log_file = base / "launcher.log"
-    try:  # 输出进日志文件：黑窗隐藏后仍可排障
-        sys.stdout = sys.stderr = open(log_file, "w", encoding="utf-8")
+    try:  # 终端可见 + 日志留底
+        sys.stdout = sys.stderr = _Tee(log_file)
     except OSError:
         pass
 
@@ -268,12 +283,10 @@ def main() -> int:
     if not ensure_venv(py, base, wheel):
         return 1
 
-    hide_console()  # 一切就绪：隐藏黑窗，只留桌面窗口
     log(f"启动服务（桌面窗口模式），模板目录：{examples}")
-    with open(log_file, "a", encoding="utf-8") as f:
-        return subprocess.run([str(venv_python(base)), "-m", "calcbook.cli", "serve",
-                               "--ui", "webview", "--templates", str(examples)],
-                              stdout=f, stderr=subprocess.STDOUT).returncode
+    # serve 子进程继承终端：地址/错误实时可见（启动地址也会由 calcbook 打印）
+    return subprocess.run([str(venv_python(base)), "-m", "calcbook.cli", "serve",
+                           "--ui", "webview", "--templates", str(examples)]).returncode
 
 
 if __name__ == "__main__":

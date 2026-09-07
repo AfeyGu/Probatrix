@@ -39,8 +39,8 @@ calcbook serve --ui webview
 **离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `launcher.exe`
 （+ wheel + `examples/` 模板）。双击 launcher 自动完成：找本机 Python
 （缺则从华为云镜像下载静默安装）→ 首次运行把 calcbook 及依赖装进包目录内
-`venv/`（不写入系统 Python，删目录即完全卸载）→ 以桌面窗口启动服务
-（就绪后黑窗自动隐藏，日志在包目录 `launcher.log`）。
+`venv/`（不写入系统 Python，删目录即完全卸载）→ 以桌面窗口启动服务。
+终端窗口实时显示启动地址与日志（同步写入包目录 `launcher.log`），关闭窗口即退出。
 构建方式 `python tools/build_release.py`。
 
 ## 写一个计算模板
