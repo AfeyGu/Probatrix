@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { store, refreshTemplates, selectTemplate, setView, addItem,
-         saveProjectAs, openProjectFile, exportProjectHtml,
+         saveProjectAs, openProjectFile, exportProjectHtml, exportProjectMd,
          newBlankProject, touch, setOfflineExport, setTheme, fsPickSupported } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
@@ -77,10 +77,17 @@ async function onExportProject() {
   }
 }
 
-/** 顶栏「⋯」菜单：低频操作（导出离线版 / 刷新模板） */
+/** 顶栏「⋯」菜单：低频操作（导出 md / 导出离线版 / 刷新模板） */
 async function onHeaderMenu(cmd) {
   if (cmd === 'offline') {
     await setOfflineExport(!store.pref.offlineExport)
+  } else if (cmd === 'md') {
+    try {
+      await exportProjectMd()
+      ElMessage.success('已导出 Markdown')
+    } catch (e) {
+      ElMessage.error(e.message)
+    }
   } else if (cmd === 'refresh') {
     await refreshTemplates()
     ElMessage.success('模板已刷新')
@@ -149,6 +156,7 @@ function ratioOf(item) {
               <el-dropdown-item command="offline">
                 {{ store.pref.offlineExport ? '✓ ' : '' }}导出离线版（内嵌公式字体，约 0.7 MB）
               </el-dropdown-item>
+              <el-dropdown-item command="md" divided>导出 Markdown（.md 计算原文）</el-dropdown-item>
               <el-dropdown-item command="refresh" divided>刷新模板</el-dropdown-item>
             </el-dropdown-menu>
           </template>

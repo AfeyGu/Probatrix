@@ -448,3 +448,23 @@ export async function exportProjectHtml() {
     store.project.name)
   downloadFile(`${store.project.name || '工程'}.html`, page, 'text/html')
 }
+
+/** 导出 Markdown：计算原文（md+LaTeX），无需转换、直接下载 */
+export async function exportItemMd(itemId) {
+  const r = store.results[itemId]
+  if (!r?.ok) throw new Error('该计算项还没有成功计算结果，先让它算完')
+  const item = store.project.items.find(i => i.id === itemId)
+  downloadFile(`${item.name}.md`, r.md, 'text/markdown')
+}
+
+export async function exportProjectMd() {
+  const parts = []
+  for (const item of store.project.items) {
+    const r = store.results[item.id]
+    if (!r?.ok) continue
+    parts.push(r.md)                       // 每项首行已有 # 计算书标题
+  }
+  if (!parts.length) throw new Error('没有可导出的计算结果，先完成计算')
+  downloadFile(`${store.project.name || '工程'}.md`,
+    parts.join('\n\n<!-- pagebreak -->\n\n'), 'text/markdown')
+}

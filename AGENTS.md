@@ -38,7 +38,8 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
                  /api/render、/api/export/html、/api/doc.css（文档排版 CSS，预览用）；
                  静态托管 src/calcbook/web
   → web/ (Vue3)  store.js 单一状态源；参数变更防抖 300ms 自动重算；工程 800ms 防抖回写服务端
-                 （刷新页面不丢）；导出走 api.exportHtml，勾选离线版则 inline_assets=true；
+                 （刷新页面不丢）；导出：HTML 走 api.exportHtml（勾选离线版则 inline_assets=true），
+                 Markdown 直接前端下载（md 为源格式，无需转换）；
                  界面主题/离线偏好存 localStorage
   → project.py   .cbproj 纯 JSON：items[{id,name,template_id,template_hash,params,deps}] + views
   → docstyle.py  计算书文档排版 CSS（.cb-doc）唯一定义处：预览经 /api/doc.css 加载，

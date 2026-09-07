@@ -3,7 +3,8 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { store, itemsOf, visibleParams, hiddenCols, toggleCol, scheduleRun,
-         runAll, addItem, copyItem, deleteItem, moveItem, applyToAll, exportItemHtml } from '../store'
+         runAll, addItem, copyItem, deleteItem, moveItem, applyToAll,
+         exportItemHtml, exportItemMd } from '../store'
 
 const templateId = computed(() => store.currentTemplateId)
 const items = computed(() => itemsOf(templateId.value))
@@ -141,6 +142,13 @@ async function onExportRow(row) {
     ElMessage.success(`已导出 ${row.name}`)
   } catch (e) { ElMessage.error(e.message) }
 }
+
+async function onExportRowMd(row) {
+  try {
+    await exportItemMd(row.id)
+    ElMessage.success(`已导出 ${row.name}.md`)
+  } catch (e) { ElMessage.error(e.message) }
+}
 </script>
 
 <template>
@@ -228,7 +236,7 @@ async function onExportRow(row) {
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="174" fixed="right">
+      <el-table-column label="操作" width="208" fixed="right">
         <template #default="{ row }">
           <el-button size="small" text type="primary" title="上移"
                      :disabled="!canMove(row, -1)"
@@ -237,7 +245,8 @@ async function onExportRow(row) {
                      :disabled="!canMove(row, 1)"
                      @click="moveItem(templateId, row.id, 1)">↓</el-button>
           <el-button size="small" text type="primary" @click="copyItem(row.id)">复制</el-button>
-          <el-button size="small" text type="primary" @click="onExportRow(row)">导出</el-button>
+          <el-button size="small" text type="primary" title="导出 HTML" @click="onExportRow(row)">导出</el-button>
+          <el-button size="small" text type="primary" title="导出 Markdown" @click="onExportRowMd(row)">MD</el-button>
           <el-button size="small" text type="danger" @click="deleteItem(row.id)">删</el-button>
         </template>
       </el-table-column>

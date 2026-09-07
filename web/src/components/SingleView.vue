@@ -3,7 +3,7 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import renderMathInElement from 'katex/contrib/auto-render'
 import { api } from '../api'
-import { store, activeItem, scheduleRun, runItem, exportItemHtml, deleteItem } from '../store'
+import { store, activeItem, scheduleRun, runItem, exportItemHtml, exportItemMd, deleteItem } from '../store'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const item = computed(() => activeItem())
@@ -57,6 +57,13 @@ async function onExport() {
   } catch (e) { ElMessage.error(e.message) }
 }
 
+async function onExportMd() {
+  try {
+    await exportItemMd(item.value.id)
+    ElMessage.success('已导出 Markdown')
+  } catch (e) { ElMessage.error(e.message) }
+}
+
 async function onDelete() {
   await ElMessageBox.confirm(`删除计算项「${item.value.name}」？删除后不可恢复。`, '删除计算项',
                             { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
@@ -80,6 +87,7 @@ function controlType(p) {
         <el-tag v-if="running" size="small" type="info">计算中…</el-tag>
         <el-button size="small" @click="runItem(item.id)">重算</el-button>
         <el-button size="small" @click="onExport">导出 HTML</el-button>
+        <el-button size="small" @click="onExportMd">MD</el-button>
         <el-button size="small" text type="danger" @click="onDelete">删除</el-button>
       </div>
 
