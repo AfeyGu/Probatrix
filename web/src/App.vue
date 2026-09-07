@@ -98,6 +98,9 @@ const THEME_NAMES = { notion: '米白', paper: '纯白', linen: '亚麻' }
 function onTheme(t) { setTheme(t) }
 function themeLabel() { return THEME_NAMES[store.pref.theme] || store.pref.theme }
 
+// 当前服务地址（桌面窗口 / 浏览器一致；端口被占用递加后仍准确）
+const serverUrl = window.location.origin
+
 async function onPickItem(group, item) {
   if (group.id !== '?') await selectTemplate(group.id)
   store.activeItemId = item.id
@@ -135,6 +138,7 @@ function ratioOf(item) {
         </el-radio-group>
       </div>
       <div class="header-spacer" />
+      <span class="server-url" :title="serverUrl">{{ serverUrl }}</span>
       <div class="hgroup">
         <el-dropdown @command="onTheme">
           <el-button>主题：{{ themeLabel() }} ▾</el-button>
@@ -302,6 +306,10 @@ body { background: var(--cb-canvas);
           border-bottom: 1px solid var(--cb-border); }
 .hgroup { display: flex; align-items: center; gap: 6px; }
 .header-spacer { flex: 1; }
+/* 顶栏服务地址：小字弱色，可选中复制 */
+.server-url { font-size: 12px; color: var(--cb-text-3);
+              font-family: ui-monospace, Consolas, 'Courier New', monospace;
+              white-space: nowrap; user-select: text; }
 .brand { font-weight: 700; font-size: 15px; white-space: nowrap; color: var(--cb-text); }
 .proj-name { width: 170px; }
 .tpl-select { width: 180px; }

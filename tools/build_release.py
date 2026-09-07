@@ -69,8 +69,8 @@ def assemble(exe: Path, whl: Path, tag: str) -> Path:
      （首次约需几分钟）。
   3. 首次运行会联网安装 calcbook 及其依赖到包目录 venv/（仅首次），
      之后每次双击直接启动桌面窗口。
-  4. 终端窗口实时显示启动地址与日志（同步写入 launcher.log）；
-     关闭终端窗口即退出程序。
+  4. 终端黑窗会自动隐藏，完整日志写入 launcher.log；
+     实际服务地址显示在窗口顶栏右侧（端口被占用时会自动递加）。
 
 文件说明：
   launcher.exe               —— 启动器

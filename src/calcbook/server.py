@@ -502,6 +502,9 @@ def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str
         except OSError:
             time.sleep(0.1)
 
+    # 桌面窗口里的下载（导出 HTML/MD/工程文件走 <a download>）：
+    # pywebview 默认禁止下载（DownloadStarting → Cancel），打开后弹原生另存为对话框
+    webview.settings["ALLOW_DOWNLOADS"] = True
     webview.create_window("CalcBook 计算书", url, width=1536, height=846)
     webview.start(lambda: threading.Thread(
         target=_apply_window_icon, daemon=True).start())

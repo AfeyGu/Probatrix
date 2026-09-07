@@ -28,7 +28,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-EXPECTED_VERSION = "0.1.0a8"
+EXPECTED_VERSION = "0.1.0a10"
 MIN_VERSION = (3, 11)
 PIP_INDEX = os.environ.get(
     "CALCBOOK_PIP_INDEX", "https://mirrors.aliyun.com/pypi/simple")
@@ -63,7 +63,7 @@ def fatal(msg: str) -> int:
 
 
 class _Tee:
-    """终端 + 日志文件双写：黑窗里能看到启动/出错信息，launcher.log 留底。"""
+    """终端 + 日志文件双写：日志写入 launcher.log 留底（黑窗隐藏后仍可排障）。"""
 
     def __init__(self, path: Path):
         self._file = open(path, "w", encoding="utf-8")  # 每次运行重写，避免无限累积
@@ -84,6 +84,17 @@ class _Tee:
         except Exception:
             pass
         self._file.flush()
+
+
+def hide_console() -> None:
+    """隐藏启动器黑窗（服务就绪后调用；窗口隐藏时任务栏按钮一并消失）。
+    日志仍写入包目录 launcher.log；界面顶栏显示实际服务地址。"""
+    try:
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+    except Exception:
+        pass
 
 
 def _parse_version(out: str) -> tuple[int, int] | None:
@@ -283,8 +294,9 @@ def main() -> int:
     if not ensure_venv(py, base, wheel):
         return 1
 
+    hide_console()  # 服务就绪：隐藏黑窗（日志同步写 launcher.log，界面顶栏显示地址）
     log(f"启动服务（桌面窗口模式），模板目录：{examples}")
-    # serve 子进程继承终端：地址/错误实时可见（启动地址也会由 calcbook 打印）
+    log(f"服务地址：http://127.0.0.1:8317（如被占用会自动递加，界面顶栏显示实际地址）")
     return subprocess.run([str(venv_python(base)), "-m", "calcbook.cli", "serve",
                            "--ui", "webview", "--templates", str(examples)]).returncode
 
