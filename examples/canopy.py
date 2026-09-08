@@ -360,7 +360,7 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
     )
     _rmin_left = r"\max\left\{"
     _rmin_right = r"\right\}"
-    b.subs(rf"\\rho_{{\\min}} = {_rmin_left}0.20\\%,\\ \\dfrac{{45 \\times {ft:g}}}{{{fy:g}}}{_rmin_right}"
+    b.subs(rf"\rho_{{\min}} = {_rmin_left}0.20\%,\ \dfrac{{45 \times {ft:g}}}{{{fy:g}}}{_rmin_right}"
            rf" = {rho_min:.3f}\%")
     b.formula(
         r"\rho_{\max} = \dfrac{\xi_b \alpha_1 f_c}{f_y}",
