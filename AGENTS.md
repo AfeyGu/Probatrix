@@ -27,7 +27,8 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 ```
 模板文件（examples/gl.py）
   → loader.py    目录扫描，importlib 导入（报错隔离到 errors，不打断其他文件），
-                 收集 __calcbook_template__ 标记，填 template_id = "文件名.函数名"，算 sha256
+                 收集 __calcbook_template__ 标记，填 template_id = "文件名.函数名"，算 sha256；
+                 读模块级 __calcbook_requires__ 声明并查环境（find_spec），缺的记入 meta.missing_deps
   → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
                  失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
                  模板函数声明可选 name 形参时，计算项「名称」作项目编号传入
@@ -51,6 +52,11 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
   同轮同步相关 md（`AGENTS.md` 架构图、`计算书工具文档.md`、`docs/模板开发指南.md`、
   `README.md`），不能只改代码。
+- **模板第三方依赖用 `__calcbook_requires__` 声明**（模块级 import 名列表，可选）：
+  loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
+  前端下拉标注）；run 前拦截给「缺少依赖 + pip 指引」；engine 另兜底 ModuleNotFoundError
+  （解析 No module named 'X'，不甩原始 traceback）；离线包 launcher 启动时按全部模板
+  声明把缺的库用 pip（国内镜像）自动装进包内 venv。
 - **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。

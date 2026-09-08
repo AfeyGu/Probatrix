@@ -5,6 +5,9 @@
 - 模板 id = 「文件名.函数名」（如 gl.calc），工程文件按 id 引用；
 - 同目录数据模块（如 Hsteel.py）用普通 import 即可——加载时把模板目录
   插入 sys.path，Python 自行解析依赖；
+- 模板可模块级声明 `__calcbook_requires__`（第三方库 import 名列表），
+  加载时检查环境是否齐全，缺的记入 meta.missing_deps（运行前友好提示，
+  launcher 启动时据此自动安装）；
 - 单文件导入对话框不做（依赖会丢），单目录扫描；
 - 每个文件计算 sha256，作为模板 hash（MVP 覆盖目录内所有被扫文件）；
 - 导入报错不打断整体：记入 errors，界面可展示（改坏一个文件不影响其他模板）。
@@ -18,6 +21,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .template import TemplateMeta
 
@@ -27,6 +31,30 @@ __all__ = ["TemplateEntry", "LoadError", "TemplateLoader"]
 _MOD_PREFIX = "_cbtpl_"
 
 _CHUNK = 1 << 20
+
+
+def check_deps(requires: list[str]) -> list[str]:
+    """返回 requires 中当前环境缺失的依赖（import 名）。"""
+    missing: list[str] = []
+    for name in requires:
+        try:
+            if importlib.util.find_spec(name) is None:
+                missing.append(name)
+        except (ImportError, ValueError):
+            missing.append(name)
+    return missing
+
+
+def _declared_requires(module: Any) -> list[str]:
+    """读模板模块级声明的 __calcbook_requires__（容忍 str / list / tuple）。"""
+    raw = getattr(module, "__calcbook_requires__", None)
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [str(x) for x in raw if isinstance(x, str)]
 
 
 def file_hash(path: Path) -> str:
@@ -105,6 +133,8 @@ class TemplateLoader:
             if meta is None or not callable(obj):
                 continue
             meta.template_id = f"{stem}.{attr}"
+            meta.requires = _declared_requires(module)
+            meta.missing_deps = check_deps(meta.requires)
             self.entries[meta.template_id] = TemplateEntry(
                 meta=meta, file=path, hash=file_hash(path),
             )

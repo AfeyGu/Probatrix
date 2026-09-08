@@ -43,6 +43,35 @@ CHECK_CODE = (
     "import calcbook, pydantic, fastapi, uvicorn, webview\n"
     "print(calcbook.__version__)\n")
 
+# 模板依赖扫描脚本：AST 解析各模板的 __calcbook_requires__ 声明（不导入模板模块，
+# 避免模块级副作用/自身缺库），用 find_spec 检查是否可用，输出缺失的 import 名。
+DEPS_CHECK_SCRIPT = r'''
+import ast
+import importlib.util
+import sys
+from pathlib import Path
+
+def collect(path):
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "__calcbook_requires__":
+                    if isinstance(node.value, (ast.List, ast.Tuple)):
+                        return [el.value for el in node.value.elts
+                                if isinstance(el, ast.Constant) and isinstance(el.value, str)]
+    return []
+
+deps = []
+for p in sorted(Path(sys.argv[1]).glob("*.py")):
+    if p.name.startswith("_"):
+        continue
+    deps += collect(p)
+missing = [d for d in dict.fromkeys(deps) if importlib.util.find_spec(d) is None]
+if missing:
+    print("\n".join(missing))
+'''
+
 
 def log(msg: str) -> None:
     print(f"[calcbook 启动器] {msg}", flush=True)
@@ -262,6 +291,28 @@ def ensure_venv(base_py: str, base: Path, wheel: Path) -> bool:
     return True
 
 
+def missing_template_deps(vpy: Path, examples: Path) -> list[str]:
+    """用 venv 的 python 扫模板声明，返回缺的第三方库（import 名）。"""
+    try:
+        r = subprocess.run([str(vpy), "-c", DEPS_CHECK_SCRIPT, str(examples)],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
+def ensure_template_deps(vpy: Path, examples: Path) -> None:
+    """模板声明了但 venv 里没装的库，用同一镜像自动装进包内 venv。"""
+    missing = missing_template_deps(vpy, examples)
+    if not missing:
+        log("模板依赖齐全，无需额外安装。")
+        return
+    log(f"模板需要额外库：{'、'.join(missing)}，正在自动安装（源：{PIP_INDEX}）…")
+    r = subprocess.run([str(vpy), "-m", "pip", "install", "-i", PIP_INDEX, *missing])
+    if r.returncode != 0:
+        log("模板依赖安装失败（不影响启动；运行对应模板时会提示缺少依赖）。")
+
+
 def _wheel_key(p: Path) -> tuple:
     """wheel 文件名版本排序键：calcbook-0.1.0a10 > calcbook-0.1.0a9（字符串序会错）"""
     nums = re.findall(r"\d+", p.name)
@@ -299,6 +350,7 @@ def main() -> int:
     log(f"使用 Python：{py}")
     if not ensure_venv(py, base, wheel):
         return 1
+    ensure_template_deps(venv_python(base), examples)
 
     hide_console()  # 服务就绪：隐藏黑窗（日志同步写 launcher.log，界面顶栏显示地址）
     log(f"启动服务（桌面窗口模式），模板目录：{examples}")

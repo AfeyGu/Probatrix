@@ -34,6 +34,8 @@ class TemplateMeta:
     manual: bool = False                       # 仅手动计算开关（迭代试算类模板）
     template_id: str = ""                      # 加载时由加载器填：「文件名.函数名」
     accepts_name: bool = False                 # 模板函数声明了可选 name 形参时为 True
+    requires: list[str] = field(default_factory=list)     # 模板声明的第三方库（import 名）
+    missing_deps: list[str] = field(default_factory=list) # 环境检查后缺失的库（加载时填）
 
     def make_params(self, data: dict[str, Any]) -> BaseModel:
         """用参数 JSON 构造参数实例（校验失败抛 pydantic.ValidationError）。"""

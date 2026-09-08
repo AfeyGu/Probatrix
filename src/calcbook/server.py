@@ -162,6 +162,8 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
                     "description": e.meta.description,
                     "manual": e.meta.manual,
                     "hash": e.hash,
+                    "requires": e.meta.requires,
+                    "missing_deps": e.meta.missing_deps,
                 }
                 for e in ctx.loader.entries.values()
             ],
@@ -185,6 +187,8 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
             "description": entry.meta.description,
             "manual": entry.meta.manual,
             "hash": entry.hash,
+            "requires": entry.meta.requires,
+            "missing_deps": entry.meta.missing_deps,
             "params": param_meta(entry.meta.params_model),
         }
 

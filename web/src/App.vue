@@ -130,7 +130,8 @@ function ratioOf(item) {
         <el-select v-model="store.currentTemplateId" class="tpl-select"
                    placeholder="选择模板" @change="selectTemplate">
           <el-option v-for="t in store.templates" :key="t.template_id"
-                     :value="t.template_id" :label="t.name" />
+                     :value="t.template_id"
+                     :label="t.name + (t.missing_deps && t.missing_deps.length ? '（缺依赖：' + t.missing_deps.join('、') + '）' : '')" />
         </el-select>
         <el-radio-group v-model="store.viewMode" @change="setView">
           <el-radio-button value="single">单项</el-radio-button>

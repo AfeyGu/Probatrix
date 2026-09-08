@@ -39,7 +39,9 @@ calcbook serve --ui webview
 **离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `launcher.exe`
 （+ wheel + `examples/` 模板）。双击 launcher 自动完成：找本机 Python
 （缺则从华为云镜像下载静默安装）→ 首次运行把 calcbook 及依赖装进包目录内
-`venv/`（不写入系统 Python，删目录即完全卸载）→ 以桌面窗口启动服务
+`venv/`（不写入系统 Python，删目录即完全卸载）→ **按模板的
+`__calcbook_requires__` 声明自动安装缺的第三方库**（如 matplotlib，
+无需用户动手）→ 以桌面窗口启动服务
 （终端窗口自动隐藏，完整日志在包目录 `launcher.log`，
 实际服务地址显示在窗口顶栏右侧）。
 构建方式 `python tools/build_release.py`。

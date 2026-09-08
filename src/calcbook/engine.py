@@ -1,11 +1,14 @@
 """计算执行：参数校验 → 运行模板 → 收集结果/报错。
 
 报错不打断界面（契约第 9 节）：任何异常都变成 RunResult.error 里的
-原样 traceback，前端预览区直接展示——这也是模板作者的调试界面。
+原样 traceback，前端预览区直接展示——这也是模板作者的调试界面；
+唯例外是缺第三方库（ModuleNotFoundError / 声明缺失）：给「缺少依赖 +
+安装指引」的可读信息，不甩原始 traceback。
 """
 
 from __future__ import annotations
 
+import re
 import traceback
 from dataclasses import dataclass, field
 from typing import Any
@@ -68,6 +71,11 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
 
     name：计算项名称（批量行的「名称」列），模板声明了可选 name 形参时传入。
     """
+    if meta.missing_deps:
+        return RunResult(
+            error_title="缺少依赖",
+            error=_deps_hint(meta),
+        )
     try:
         params = meta.make_params(params_data)
     except ValidationError as e:
@@ -77,6 +85,11 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
         )
     try:
         book = meta.run(params, name=name)
+    except ModuleNotFoundError as e:          # 模板依赖未装：给可读指引，不甩原始 traceback
+        return RunResult(
+            error_title="缺少依赖",
+            error=_module_not_found_hint(e, meta),
+        )
     except Exception:
         return RunResult(
             error_title="计算出错",
@@ -91,3 +104,43 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
             ),
         )
     return RunResult().from_book(book)
+
+
+# ----------------------------------------------------------------------
+# 依赖缺失的友好提示
+# ----------------------------------------------------------------------
+_INSTALL_HINT = (
+    "解决办法：\n"
+    "  1) 命令行安装：{cmd}\n"
+    "  2) 离线发布包用户：关闭 CalcBook 后重新运行 launcher.exe，"
+    "启动器会自动安装模板需要的库\n"
+)
+
+
+def _deps_hint(meta: TemplateMeta) -> str:
+    """模板声明了依赖但环境缺失：逐条列出缺什么、怎么装。"""
+    names = "、".join(meta.missing_deps)
+    return (
+        f"模板「{meta.name}」（{meta.template_id}）需要已安装的库：{names}\n"
+        f"当前环境中未找到，无法运行。\n\n"
+        + _INSTALL_HINT.format(cmd=f"pip install {' '.join(meta.missing_deps)}")
+    )
+
+
+def _module_not_found_hint(e: ModuleNotFoundError, meta: TemplateMeta) -> str:
+    """运行中途因缺库抛 ModuleNotFoundError：解析缺哪个库，给可读指引。"""
+    name = getattr(e, "name", None) or _missing_from_traceback()
+    if name:
+        return (
+            f"模板「{meta.name}」在运行时需要未安装的库：{name}\n\n"
+            + _INSTALL_HINT.format(cmd=f"pip install {name}")
+        )
+    return traceback.format_exc()   # 解析不到具体模块名，退回原始 traceback
+
+
+_MISSING_RE = re.compile(r"No module named '([^']+)'")
+
+
+def _missing_from_traceback() -> str | None:
+    m = _MISSING_RE.search(traceback.format_exc())
+    return m.group(1) if m else None
