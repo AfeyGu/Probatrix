@@ -37,7 +37,14 @@ dist-ssr/
 Thumbs.db
 .idea/
 .vscode/
-.pi/
+
+# Agent 运行时私有状态（仅忽略已知状态目录；skills 与 APPEND_SYSTEM 是项目级共享资源，下方例外）
+.pi/cache/
+.pi/sessions/
+.pi/state/
+!.pi/skills/
+!.pi/skills/**
+!.pi/APPEND_SYSTEM.md
 
 # 本地运行日志
 _srv.log
