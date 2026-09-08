@@ -14,6 +14,16 @@
 from calcbook import CalcBook, Field, template
 ```
 
+**（可选）模块级声明第三方依赖**：模板用了 matplotlib 等不在
+calcbook 基础依赖里的库时，在文件顶部写：
+
+```python
+__calcbook_requires__ = ["matplotlib"]   # import 名列表
+```
+
+不声明也能跑，但用户机器缺库时只看到一屏 traceback；声明后界面提示
+「缺少依赖 + 安装指引」，离线发布包 launcher 启动时还会自动安装。
+
 你只负责两件事，其余 CalcBook 全管：
 
 | 你写 | CalcBook 自动做 |
@@ -190,6 +200,16 @@ def section_fig(width_mm: float, height_mm: float) -> bytes:
 b.image_bytes(section_fig(p.Wx, 100), caption="截面简图")
 ```
 
+> ⚠️ **用了 matplotlib（或任何第三方库），必须在文件顶部声明依赖**
+> （模块级，import 名）：
+>
+> ```python
+> __calcbook_requires__ = ["matplotlib"]
+> ```
+>
+> 未声明：用户机器缺库 → 运行报一屏 traceback；声明后：界面明确提示
+> 「缺少依赖 + 安装指引」，离线发布包 launcher 启动时自动安装到包内 venv。
+
 > **不要用 `image(path)`**：相对路径在离线导出 HTML 时会裂图。
 
 ## 6. 单位纪律（强制约定）
@@ -256,6 +276,9 @@ def calc(p: P, *, name: str = "") -> CalcBook:
 ```python
 # ---------- 导入 ----------
 from calcbook import CalcBook, Field, template
+
+# ---------- 可选：第三方库依赖声明 ----------
+__calcbook_requires__ = ["matplotlib"]   # import 名；缺了会提示/自动装
 
 # ---------- 声明 ----------
 @template(name: str, description: str = "", manual: bool = False)

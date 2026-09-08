@@ -39,6 +39,10 @@ description: >
 **只写两件事**（参数声明 + 计算+写书）。其他全部由 CalcBook 接管——
 自动生成表单、批量表格列、参数 JSON、KaTeX 预览、HTML 导出。
 
+**用了第三方库的模板**（如 matplotlib）另加一行模块级声明
+`__calcbook_requires__ = ["matplotlib"]`（见阶段 1.5）——否则用户机器
+缺库时只能看到一屏 traceback。
+
 API 细节一律查 `references/api.md`，不在此重复。
 
 ---
@@ -74,6 +78,10 @@ API 细节一律查 `references/api.md`，不在此重复。
 ### 1.5 插图与可视化
 - 是否需要 matplotlib 截面图/计算简图？→ 用 `image_bytes` 内嵌（不要用 `image` 路径，导出离线版会裂图）
 - 字体注意：`Microsoft YaHei / SimHei`（中文标签）+ `axes.unicode_minus = False`（负号）
+- **用 matplotlib 的模板，必须在文件顶部声明依赖**（模块级）：
+  `__calcbook_requires__ = ["matplotlib"]`——否则用户机器缺库时界面只报
+  一屏 traceback；声明后界面提示「缺少依赖 + 安装指引」，离线发布包
+  launcher 启动时还会自动安装到包内 venv。
 
 ### 1.6 命名三件套（影响 `template_id` 与工程文件兼容性）
 - **文件名** `xxx.py` → 模板 id 前缀（**一旦发布不要改**，旧工程按 id 找不到）
@@ -136,6 +144,9 @@ python assets/example-steel-beam.py
 - **必写项**：`return b`、每个模板至少一个 `check`（否则 `b.max_ratio` 为 `None`、批量视图无应力比列）
 - **顺序**：`formula → subs → check` 三件套挨在一起（界面预览按此节奏）
 - **字符串字面量**：不要用 `str.format`（CSS 花括号会冲突；导出模板的工程文件也走 `str.replace`）
+- **第三方依赖**：用了 matplotlib 等不在 calcbook 基础依赖里的库 → 文件顶部声明
+  `__calcbook_requires__ = ["matplotlib"]`（import 名列表；缺库时界面给「缺少依赖 +
+  安装指引」，离线包 launcher 自动装）
 - **group 设计**：材料/系数整组统一，几何/荷载每行填——参考 `assets/example-steel-beam.py` 的 group 划分
 
 ### 3.3 完整反模式清单
@@ -147,6 +158,7 @@ python assets/example-steel-beam.py
 - 第一行写带规范的 docstring（`@template` 的 description 在界面下拉里会显示）
 - 不要建 `__init__.py`（loader 用 importlib，不走包导入）
 - 文件名小写英文 + 下划线（`gl.py`、`stair.py`、`hcolumn.py`）
+- 用了第三方库（matplotlib 等）→ 顶部声明 `__calcbook_requires__`（见 1.5）
 
 **完成判据**：文件已落盘；`assets/example-steel-beam.py` 跑得通；新模板也能在自己设计的合法参数下跑通（自己脑内或笔算一组参数验证）。
 

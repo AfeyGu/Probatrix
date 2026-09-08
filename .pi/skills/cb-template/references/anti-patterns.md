@@ -93,6 +93,9 @@ b.image_bytes(make_png(), caption="截面图")
 预览能看到但发出去的文件裂图。`image_bytes` 把 PNG 内联成 base64 data URI，
 导出离线版时也保留。
 
+> 用 matplotlib 的模板，别忘了文件顶部声明依赖：
+> `__calcbook_requires__ = ["matplotlib"]`（见 `api.md` §5）。
+
 ---
 
 ## 5. 限值硬编在 calc 函数里
@@ -286,3 +289,4 @@ def section_fig(...):
 - [ ] `formula` → `subs` → `check` 顺序
 - [ ] 顶部有 `from __future__ import annotations`
 - [ ] matplotlib rcParams 局部设置、try/finally 恢复
+- [ ] 用了第三方库（matplotlib 等）→ 顶部写了 `__calcbook_requires__` 声明
