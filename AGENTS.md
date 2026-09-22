@@ -19,6 +19,7 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 ```
 
 - **打包验证**：`pip wheel --no-deps -w _wheelcheck .`（wheel 应 ~2.4 MB，含 `src/calcbook/web` 与 `src/calcbook/vendor`，用完删 `_wheelcheck/`）。
+- **离线发布包**：`python tools/build_release.py`（依赖 `pip install build pyinstaller`），产出 `release/calcbook-<版本>.zip`，全离线，详见「关键设计决定」。
 - 服务端 Python 代码改动需重启服务；`src/calcbook/web`、`src/calcbook/vendor` 由构建产出，**不要手改**。
 - 打包配置在 `pyproject.toml`（package-data 含 web/vendor）+ `MANIFEST.in`，两者要同步维护。
 
@@ -55,8 +56,16 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **模板第三方依赖用 `__calcbook_requires__` 声明**（模块级 import 名列表，可选）：
   loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
   前端下拉标注）；run 前拦截给「缺少依赖 + pip 指引」；engine 另兜底 ModuleNotFoundError
-  （解析 No module named 'X'，不甩原始 traceback）；离线包 launcher 启动时按全部模板
-  声明把缺的库用 pip（国内镜像）自动装进包内 venv。
+  （解析 No module named 'X'，不甩原始 traceback）；离线包启动器（CalcBook.exe）启动时按全部模板
+  声明把缺的库用 pip（国内镜像）自动装进包内 python/。
+- **离线发布包内置 Python，全离线**：`tools/build_release.py` 产出
+  `release/calcbook-<版本>.zip` = `CalcBook.exe`（PyInstaller `--windowed` 启动器，
+  无控制台黑窗）+ `python/`（嵌入版 Python 3.12，构建时启用 site、装 pip、
+  预装 calcbook wheel + numpy/scipy/pandas/matplotlib/openpyxl，并剔除各库
+  tests/ 目录）+ `examples/` + `docs/`。**wheel 是构建中间产物**——构建时装进
+  包内 Python，不随 zip 分发。用户解压双击即用：零联网、不依赖系统 Python、
+  不写注册表/环境变量，删目录即完全卸载；仅模板缺第三方库时启动器用包内
+  pip（国内镜像）补装进 `python/`。升级 = 整包替换。
 - **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。

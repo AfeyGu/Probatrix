@@ -36,14 +36,14 @@ calcbook serve --ui webview
 > 界面构建产物已随包分发（`src/calcbook/web/`），**使用侧不需要 Node**；
 > 只有改前端代码时才需要 `cd web && npm install && npm run build`。
 
-**离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `launcher.exe`
-（+ wheel + `examples/` 模板）。双击 launcher 自动完成：找本机 Python
-（缺则从华为云镜像下载静默安装）→ 首次运行把 calcbook 及依赖装进包目录内
-`venv/`（不写入系统 Python，删目录即完全卸载）→ **按模板的
-`__calcbook_requires__` 声明自动安装缺的第三方库**（如 matplotlib，
-无需用户动手）→ 以桌面窗口启动服务
-（终端窗口自动隐藏，完整日志在包目录 `launcher.log`，
-实际服务地址显示在窗口顶栏右侧）。
+**离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `CalcBook.exe`
+启动器 + `python/`（**内置 Python 3.12，已预装 calcbook 及全部依赖**：
+numpy/scipy/pandas/matplotlib/openpyxl 等）+ `examples/` 模板。
+解压后双击 `CalcBook.exe` 即用：**完全离线**（不依赖系统 Python、不写注册表，
+删目录即完全卸载），以桌面窗口启动服务（全程无命令行窗口，完整日志在包目录
+`calcbook.log`，实际服务地址显示在窗口顶栏右侧）。仅当模板声明的第三方库
+（`__calcbook_requires__`）在包内缺失时，启动器才会用内置 pip 从国内镜像
+自动补装（这是唯一的联网场景）。
 构建方式 `python tools/build_release.py`。
 
 ## 写一个计算模板
