@@ -7,7 +7,7 @@
   插入 sys.path，Python 自行解析依赖；
 - 模板可模块级声明 `__calcbook_requires__`（第三方库 import 名列表），
   加载时检查环境是否齐全，缺的记入 meta.missing_deps（运行前友好提示，
-  launcher 启动时据此自动安装）；
+  启动器（CalcBook.exe）启动时据此自动安装）；
 - 单文件导入对话框不做（依赖会丢），单目录扫描；
 - 每个文件计算 sha256，作为模板 hash（MVP 覆盖目录内所有被扫文件）；
 - 导入报错不打断整体：记入 errors，界面可展示（改坏一个文件不影响其他模板）。
