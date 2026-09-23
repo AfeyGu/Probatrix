@@ -32,6 +32,10 @@ __all__ = ["CalcBook"]
 #: 默认数值格式（比值等），足够展示且不堆小数
 _DEFAULT_DIGITS = 4
 
+#: 推导链分行规律的源字符阈值：全串 ≤ 此值单行连排，超过逐段 aligned 分行
+#: （按版心渲染宽度校准的经验值；作者可用 derive(..., one_line=True/False) 覆盖）
+_ONE_LINE_CHARS = 120
+
 
 @dataclass
 class _Item:
@@ -98,12 +102,11 @@ class CalcBook:
         return self
 
     def derive(self, left: str, *steps: str,
-               cite: tuple[str, str] | None = None) -> "CalcBook":
+               cite: tuple[str, str] | None = None,
+               one_line: bool | None = None) -> "CalcBook":
         """推导链（代入过程的**推荐写法**）：一个等式串下来。
 
-        首行「left = 段1」，其后逐行「= 段2」「= 段3」……等号自动对齐；
-        段数 = 1 时即单行公式。相比 formula()+subs() 的两段独立公式块，
-        推导链展示为连贯的推导过程：
+        首行「left = 段1」，其后逐段「= 段2」「= 段3」……段间自动补 =：
 
             b.derive(r"\\sigma",
                      r"\\dfrac{M_x}{\\gamma_x W_x} \\le f",
@@ -111,18 +114,20 @@ class CalcBook:
                      rf"{sigma:.1f}\\ \\mathrm{{N/mm^2}}",
                      cite=("GB 50017-2017", "4.1.1"))
 
-        显示效果（aligned 等式链）::
-
-            σ = Mx / (γx·Wnx) ≤ f
-              = 95.2×10⁶ / (γx·Wnx)
-              = 152.3 N/mm²
+        分行规律（自动）：全串源字符总长 ≤120（约版心渲染宽）时**单行连排**，
+        超过则逐段 aligned 分行；one_line=True/False 可强制覆盖——
+        想要手稿式逐行推导（式子短也分行）就 one_line=False。
+        formula()+subs() 旧写法仍支持，且相邻时渲染自动按同一规律合并。
         """
         if not steps:
             raise ValueError("derive 至少需要一个推导段")
-        rows = [rf"{left} &= {steps[0]}"] + [f"&= {s}" for s in steps[1:]]
-        body = (r"\begin{aligned}" + "\n"
-                + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
-        self._items.append(_Item(kind="formula", text=body, cite=cite))
+        if one_line is None:
+            one_line = len(left) + sum(len(s) for s in steps) <= _ONE_LINE_CHARS
+        if one_line:
+            text = f"{left} = " + " = ".join(steps)
+        else:
+            text = _aligned_body(left, [("", s) for s in steps])
+        self._items.append(_Item(kind="formula", text=text, cite=cite))
         return self
 
     # ------------------------------------------------------------------
@@ -227,9 +232,8 @@ class CalcBook:
 
         for grp in _formula_groups(self._items):
             if grp[0] == "chain":
-                _, head, segs, cite = grp
-                body = _aligned_body(head, segs)
-                lines += [f"$${body}$$"]
+                _, text, cite = grp
+                lines += [f"$${text}$$"]
                 if cite:
                     lines += [f"> 依据：{cite[0]} 第 {cite[1]} 条", ""]
                 lines += [""]
@@ -269,9 +273,8 @@ class CalcBook:
             out.append(f"<h1>{_inline(self.title)}</h1>")
         for grp in _formula_groups(self._items):
             if grp[0] == "chain":
-                _, head, segs, cite = grp
-                body = _aligned_body(head, segs)
-                out.append(f"<p class='formula'>{_esc(f'$${body}$$')}</p>")
+                _, text, cite = grp
+                out.append(f"<p class='formula'>{_esc(f'$${text}$$')}</p>")
                 if cite:
                     out.append(f"<blockquote>{_inline(f'依据：{cite[0]} 第 {cite[1]} 条')}</blockquote>")
                 continue
@@ -436,7 +439,12 @@ def _formula_groups(items: list[_Item]):
             sl = sp[0].strip()
             for idx, seg in enumerate(sp[1:]):
                 segs.append((sl if (idx == 0 and sl != head) else "", seg))
-        yield ("chain", head, segs, it.cite)
+        one_line = len(head) + sum(len(s) for _, s in segs) <= _ONE_LINE_CHARS
+        if one_line:
+            text = f"{head} = " + " = ".join(s.strip() for _, s in segs)
+        else:
+            text = _aligned_body(head, segs)
+        yield ("chain", text, it.cite)
         i = j
 
 

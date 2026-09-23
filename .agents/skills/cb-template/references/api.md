@@ -124,7 +124,7 @@ Field(默认值,
 |---|---|---|
 | `h1/h2/h3(text)` | 标题（编号自己写，如 `"1. 强度验算"`） | `# / ## / ###` |
 | `p(text)` | 文字段落，支持行内 `$…$` | 段落 |
-| `derive(left, *steps, cite=None)` | **推导链**（代入过程推荐写法） | 等式串：首行 `left = 段1`，其后 `= 段2`… 对齐连排 |
+| `derive(left, *steps, cite=None, one_line=None)` | **推导链**（代入过程推荐写法） | 等式串；源字符 ≤120 自动单行连排，超过逐段 aligned 分行，`one_line` 强制覆盖 |
 | `formula(latex, cite=None)` | **符号公式**（独立公式块） | `$$…$$` + 依据标注行 |
 | `subs(latex, cite=None)` | **代入数值**（跟在 formula 后） | 独立公式块 |
 | `check(…)` | 验算项（见 §4） | 判定行 + 自动汇总表 |

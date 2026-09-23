@@ -45,12 +45,22 @@ def test_multiline_paragraph_is_lines() -> None:
 
 # ---------------------------------------------------------------- 公式与引用
 def test_formula_subs_merge_into_chain() -> None:
-    """相邻 formula+subs 自动合并为推导链（旧写法免费升级显示形态）。"""
+    """相邻 formula+subs 自动合并为推导链；短链（≤120 源字符）单行连排。"""
     h = book_all_kinds().to_html()
-    assert "<p class='formula'>$$\\begin{aligned}" in h
-    assert "\\sigma &amp;= \\dfrac{M_x}{\\gamma_x W_x}" in h
-    assert "&amp;= 150.2" in h
+    assert "<p class='formula'>$$\\sigma = \\dfrac{M_x}{\\gamma_x W_x} = 150.2$$</p>" in h
+    assert "aligned" not in h
     assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in h
+
+
+def test_formula_subs_long_merges_multiline() -> None:
+    """长链（>120 源字符）逐段 aligned 分行。"""
+    b = CalcBook()
+    b.formula(r"\sigma = \dfrac{M_x}{\gamma_x W_x} \le f")
+    b.subs(r"\sigma = \dfrac{95.2\times10^6}{1.05 \times W_x}"
+           r" = \dfrac{95.2\times10^6}{1.05 \times W_x}"
+           r" = \dfrac{c}{d}")
+    h = b.to_html(with_summary=False)
+    assert "\\begin{aligned}" in h and "&amp;= \\dfrac{c}{d}" in h
 
 
 def test_formula_without_subs_standalone() -> None:
@@ -67,7 +77,8 @@ def test_check_verdict_line() -> None:
 
 
 # ---------------------------------------------------------------- 推导链（derive）
-def test_derive_chain_aligned() -> None:
+def test_derive_short_single_line() -> None:
+    """短链自动单行连排（源字符 ≤120）。"""
     b = CalcBook()
     b.derive(r"\sigma",
              r"\dfrac{M_x}{\gamma_x W_x} \le f",
@@ -75,17 +86,39 @@ def test_derive_chain_aligned() -> None:
              r"152.3\ \mathrm{N/mm^2}",
              cite=("GB 50017-2017", "4.1.1"))
     h = b.to_html(with_summary=False)
-    assert "<p class='formula'>$$\\begin{aligned}" in h
-    assert "\\sigma &amp;=" in h                    # 首行：左符号 = 段1（& 转义）
-    assert "&amp;= \\dfrac{95.2" in h               # 后续行：= 段2（等号对齐）
-    assert "&amp;= 152.3" in h
-    assert "\\end{aligned}$$" in h
+    assert "<p class='formula'>$$\\sigma = \\dfrac{M_x}{\\gamma_x W_x} \\le f" \
+           " = \\dfrac{95.2" in h
+    assert "aligned" not in h
     assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in h
+
+
+def test_derive_long_auto_multiline() -> None:
+    """长链自动逐段 aligned 分行（源字符 >120）。"""
+    long_mid = r"\dfrac{95.2\times10^6}{1.05 \times W_x} + " * 3
+    b = CalcBook().derive(r"\sigma",
+                          r"\dfrac{M_x}{\gamma_x W_x} \le f",
+                          long_mid + r"\dfrac{95.2\times10^6}{1.05 W_x}",
+                          r"152.3\ \mathrm{N/mm^2} \le f_{\max}")
+    h = b.to_html(with_summary=False)
+    assert "\\begin{aligned}" in h
+    assert "\\sigma &amp;= " in h
+    assert "&amp;= 152.3" in h
+
+
+def test_derive_one_line_override() -> None:
+    """one_line=True/False 强制覆盖自动规律。"""
+    steps = (r"\dfrac{M_x}{\gamma_x W_x}",
+             r"\dfrac{95.2\times10^6}{1.05 \times W_x} + \dfrac{a}{b} + \dfrac{c}{d}")
+    one = CalcBook().derive(r"\sigma", *steps, one_line=True).to_html(with_summary=False)
+    assert "aligned" not in one
+    many = CalcBook().derive(r"\sigma", r"\dfrac{M}{W}", r"1.0",
+                             one_line=False).to_html(with_summary=False)
+    assert "\\begin{aligned}" in many and "&amp;= 1.0" in many
 
 
 def test_derive_single_step() -> None:
     h = CalcBook().derive(r"\sigma", r"\dfrac{M}{W}").to_html(with_summary=False)
-    assert "\\begin{aligned}" in h and "\\sigma &amp;= \\dfrac{M}{W}" in h
+    assert "<p class='formula'>$$\\sigma = \\dfrac{M}{W}$$</p>" in h
 
 
 def test_derive_requires_steps() -> None:

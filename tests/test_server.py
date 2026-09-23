@@ -157,7 +157,7 @@ def test_export_html(client: TestClient) -> None:
         "meta": {"工程名称": "测试", "计算人": "张三", "日期": "2026-09-05"},
     })
     page = r.json()["html"]
-    assert "$$\\sigma" in page                             # 公式原样留给 KaTeX
+    assert "\\sigma = \\dfrac{M_x}" in page                # 推导链原样留给 KaTeX
     assert "工程名称：测试" in page
     assert "renderMathInElement" in page
     assert "window.print" in page
