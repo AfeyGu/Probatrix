@@ -54,3 +54,4 @@ release/
 # README 截图与图标（例外入库）
 !assets/*.png
 !assets/*.ico
+_tmp/

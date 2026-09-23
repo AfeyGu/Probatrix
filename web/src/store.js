@@ -422,16 +422,19 @@ function metaFields() {
   }
 }
 
-async function htmlOf(md, title) {
-  const { html } = await api.exportHtml(md, title, metaFields(), store.pref.offlineExport)
-  return html
+const escHtml = (s) => s.replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
+async function htmlOf(html, title) {
+  const { html: page } = await api.exportHtml(html, title, metaFields(), store.pref.offlineExport)
+  return page
 }
 
 export async function exportItemHtml(itemId) {
   const r = store.results[itemId]
   if (!r?.ok) throw new Error('该计算项还没有成功计算结果，先让它算完')
   const item = store.project.items.find(i => i.id === itemId)
-  const page = await htmlOf(r.md, item.name)
+  const page = await htmlOf(r.html, item.name)
   downloadFile(`${item.name}.html`, page, 'text/html')
 }
 
@@ -441,10 +444,10 @@ export async function exportProjectHtml() {
   for (const item of store.project.items) {
     const r = store.results[item.id]
     if (!r?.ok) continue
-    parts.push(`# ${item.name}\n\n${r.md}`)
+    parts.push(`<h1>${escHtml(item.name)}</h1>\n${r.html}`)
   }
   if (!parts.length) throw new Error('没有可导出的计算结果，先完成计算')
-  const page = await htmlOf(parts.join('\n\n<!-- pagebreak -->\n\n'),
+  const page = await htmlOf(parts.join('\n<div class="page-break"></div>\n'),
     store.project.name)
   downloadFile(`${store.project.name || '工程'}.html`, page, 'text/html')
 }

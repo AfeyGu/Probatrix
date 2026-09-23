@@ -2,7 +2,6 @@
 /** 单项视图：左侧参数表单（声明即界面），右侧计算书实时预览（KaTeX）。 */
 import { computed, ref, watch, nextTick } from 'vue'
 import renderMathInElement from 'katex/contrib/auto-render'
-import { api } from '../api'
 import { store, activeItem, scheduleRun, runItem, exportItemHtml, exportItemMd, deleteItem } from '../store'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -26,15 +25,12 @@ watch(groups, g => { openGroups.value = g.map(x => x.name) }, { immediate: true 
 const result = computed(() => store.results[item.value?.id] ?? null)
 const running = computed(() => item.value && store.runningIds.has(item.value.id))
 
-// ---- 预览渲染：md → HTML → KaTeX ----
+// ---- 预览渲染：run 返回的 html(直通管线) → KaTeX ----
 const previewHtml = ref('')
 const previewEl = ref(null)
 
-watch(() => result.value?.md, async (md) => {
-  if (!md) { previewHtml.value = ''; return }
-  try {
-    previewHtml.value = (await api.render(md)).html
-  } catch { previewHtml.value = '' }
+watch(() => result.value?.html, async (html) => {
+  previewHtml.value = html || ''
   await nextTick()
   if (previewEl.value) {
     renderMathInElement(previewEl.value, {

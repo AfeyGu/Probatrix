@@ -33,15 +33,17 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
   → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
                  失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
                  模板函数声明可选 name 形参时，计算项「名称」作项目编号传入
-  → calcbook.py  CalcBook Builder：formula/subs/check/cite/image/table → Markdown+LaTeX；
+  → calcbook.py  CalcBook Builder：formula/subs/check/cite/image/table → items；
+                 to_html() 直出 HTML（预览/导出用）、to_markdown() 纯导出物（下载阅读）；
                  check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio；
                  metric(name, 值)：批量表格附加指标列（不进正文，随 RunResult.metrics 到前端动态成列）
-  → server.py    FastAPI：/api/templates、/api/run(-batch)、/api/project、/api/hash-check、
-                 /api/render、/api/export/html、/api/doc.css（文档排版 CSS，预览用）；
+  → server.py    FastAPI：/api/templates、/api/run(-batch)（响应含 html）、/api/project、
+                 /api/hash-check、/api/export/html（收前端拼好的 html）、/api/doc.css；
                  静态托管 src/calcbook/web
   → web/ (Vue3)  store.js 单一状态源；参数变更防抖 300ms 自动重算；工程 800ms 防抖回写服务端
-                 （刷新页面不丢）；导出：HTML 走 api.exportHtml（勾选离线版则 inline_assets=true），
-                 Markdown 直接前端下载（md 为源格式，无需转换）；
+                 （刷新页面不丢）；预览直接用 run 返回的 html（KaTeX 扫描）；导出：HTML 走
+                 api.exportHtml（多项合并时前端拼 page-break div；勾选离线版则 inline_assets=true），
+                 Markdown 直接前端下载（md 为纯导出物，不参与渲染）；
                  界面主题/离线偏好存 localStorage
   → project.py   .cbproj 纯 JSON：items[{id,name,template_id,template_hash,params,deps}] + views
   → docstyle.py  计算书文档排版 CSS（.cb-doc）唯一定义处：预览经 /api/doc.css 加载，
@@ -71,7 +73,8 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。
 - **离线导出只内联 woff2**：woff/ttf 加上会到 1.73 MB，不划算；vendor 目录只备 css+2js+20 个 woff2。
-- **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。md→HTML 渲染必须**先剥前缀再 html.escape**（回归教训：`> 依据` 变 `t; 依据`），粗体 `**…**` 在 `_inline()` 处理。
+- **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。
+- **管线是 items → HTML 直通**（无 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定——改渲染必须同步契约文档（模板开发指南 §3.1）。
 
 ## 界面设计系统（Notion 风，改样式前先看这段）
 

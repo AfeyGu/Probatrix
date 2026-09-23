@@ -12,7 +12,9 @@
     return b
 
 约定：
-- 内部格式为 Markdown + LaTeX（$...$ 行内、$$...$$ 独立公式），前端 KaTeX 渲染；
+- 渲染目标为 HTML（to_html，预览/导出用）；LaTeX 交给前端 KaTeX；
+  Markdown（to_markdown）是纯导出物，供下载阅读，不参与渲染管线；
+- 行内格式契约：`**粗体**` 与行内公式 `$...$`，见 docs/模板开发指南.md；
 - check() 是一等公民：正文逐项输出判定，末尾自动汇总「验算结论汇总」表；
 - 单位纪律：模板内部统一 SI 基本单位，Field(unit=...) 管输入/展示换算。
 """
@@ -20,6 +22,8 @@
 from __future__ import annotations
 
 import base64
+import html
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -52,7 +56,7 @@ class _Item:
 
 
 class CalcBook:
-    """链式 Builder；收集内容块与验算项，渲染为 Markdown+LaTeX。"""
+    """链式 Builder；收集内容块与验算项，渲染为 HTML（LaTeX 交给 KaTeX）。"""
 
     def __init__(self, title: str | None = None) -> None:
         self.title = title
@@ -178,6 +182,7 @@ class CalcBook:
     # 渲染
     # ------------------------------------------------------------------
     def to_markdown(self, *, with_summary: bool = True) -> str:
+        """Markdown 导出物（纯阅读用，不参与预览/渲染管线）。"""
         lines: list[str] = []
         if self.title:
             lines += [f"# {self.title}", ""]
@@ -194,7 +199,7 @@ class CalcBook:
             elif it.kind in ("formula", "subs"):
                 lines += [f"$${it.text}$$", *self._cite_lines(it), ""]
             elif it.kind == "check":
-                lines += self._render_check(it)
+                lines += [f"- {self._check_text(it)}", *self._cite_lines(it), ""]
             elif it.kind == "image":
                 alt = it.caption or "图"
                 lines += [f"![{alt}]({it.path})", ""]
@@ -202,8 +207,45 @@ class CalcBook:
                 lines += self._render_table(it.header, it.rows)
 
         if with_summary and self.checks:
-            lines += self._render_summary()
+            header, rows = self._summary_table()
+            lines += self._render_table(header, rows)
         return "\n".join(lines).rstrip() + "\n"
+
+    def to_html(self, *, with_summary: bool = True) -> str:
+        """items 直出 HTML（界面预览与 HTML 导出用）。
+
+        结构只由 API 决定；文本一律转义；行内格式（粗体/行内公式）契约见
+        docs/模板开发指南.md「内容语法契约」。图片环绕（side）由 image() 参数驱动。
+        """
+        out: list[str] = []
+        if self.title:
+            out.append(f"<h1>{_inline(self.title)}</h1>")
+        for it in self._items:
+            k = it.kind
+            if k in ("h1", "h2", "h3"):
+                out.append(f"<{k}>{_inline(it.text)}</{k}>")
+            elif k == "p":
+                for line in it.text.split("\n"):
+                    if line.strip():
+                        out.append(f"<p>{_inline(line)}</p>")
+            elif k in ("formula", "subs"):
+                out.append(f"<p class='formula'>{_esc(f'$${it.text}$$')}</p>")
+                out.extend(_cite_html(it))
+            elif k == "check":
+                out.append(f"<p class='item'>• {_inline(self._check_text(it))}</p>")
+                out.extend(_cite_html(it))
+            elif k == "image":
+                alt = it.caption or "图"
+                out.append(f"<p style='text-align:center'>"
+                           f"<img src='{_esc(it.path)}' alt='{_esc(alt)}'></p>")
+                if alt != "图":
+                    out.append(f"<p style='text-align:center'>"
+                               f"<small>{_inline(alt)}</small></p>")
+            elif k == "table":
+                out.extend(_table_html(it.header, it.rows))
+        if with_summary and self.checks:
+            out.extend(_table_html(*self._summary_table()))
+        return "\n".join(out)
 
     # ------------------------------------------------------------------
     def _cite_lines(self, it: _Item) -> list[str]:
@@ -211,28 +253,24 @@ class CalcBook:
             return [f"> 依据：{it.cite[0]} 第 {it.cite[1]} 条", ""]
         return []
 
-    def _render_check(self, it: _Item) -> list[str]:
+    def _check_text(self, it: _Item) -> str:
+        """check 判定行的正文（md 版加 `- ` 前缀、html 版包 <p class='item'>）。"""
         sym = "≤" if it.op == "le" else "≥"
         unit = f" {it.unit}" if it.unit else ""
-        val = _fmt(it.value)
-        lim = _fmt(it.limit)
-        ratio = _fmt(it.ratio)
-        verdict = "**满足**" if it.passed else "**不满足**"
         expr_part = f"${it.expr}$：" if it.expr else ""
-        line = (
-            f"- **{it.name}**：{expr_part}{val} {sym} {lim}{unit}，"
-            f"应力比 {ratio} —— {verdict}"
+        verdict = "**满足**" if it.passed else "**不满足**"
+        return (
+            f"**{it.name}**：{expr_part}{_fmt(it.value)} {sym} {_fmt(it.limit)}{unit}，"
+            f"应力比 {_fmt(it.ratio)} —— {verdict}"
         )
-        return [line, *self._cite_lines(it), ""]
 
-    @staticmethod
-    def _render_table(header: list[str], rows: list[list[Any]]) -> list[str]:
+    def _render_table(self, header: list[str], rows: list[list[Any]]) -> list[str]:
         out = ["| " + " | ".join(str(h) for h in header) + " |",
                "| " + " | ".join("---" for _ in header) + " |"]
         out += ["| " + " | ".join(str(c) for c in row) + " |" for row in rows]
         return out + [""]
 
-    def _render_summary(self) -> list[str]:
+    def _summary_table(self) -> tuple[list[str], list[list[Any]]]:
         has_cite = any(c.cite for c in self.checks)
         rows = []
         for c in self.checks:
@@ -251,7 +289,37 @@ class CalcBook:
         header = ["验算项", "数值", "应力比", "结论"]
         if has_cite:
             header.append("依据")
-        return self._render_table(header, rows)
+        return header, rows
+
+
+# ----------------------------------------------------------------------
+# HTML 渲染部件（内容语法契约的实现，转义优先）
+# ----------------------------------------------------------------------
+def _esc(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+
+
+def _inline(text: str) -> str:
+    """行内格式：HTML 转义 + `**粗体**`（唯一的内容级语法，见模板开发指南）。"""
+    return _BOLD_RE.sub(r"<b>\1</b>", _esc(text))
+
+
+def _cite_html(it: _Item) -> list[str]:
+    if it.cite:
+        return [f"<blockquote>{_inline(f'依据：{it.cite[0]} 第 {it.cite[1]} 条')}</blockquote>"]
+    return []
+
+
+def _table_html(header: list[str], rows: list[list[Any]]) -> list[str]:
+    ths = "".join(f"<th>{_inline(str(h))}</th>" for h in header)
+    out = [f"<table><tr>{ths}</tr>"]
+    out += [f"<tr>{''.join(f'<td>{_inline(str(c))}</td>' for c in row)}</tr>"
+            for row in rows]
+    out.append("</table>")
+    return out
 
 
 def _fmt(v: float | None) -> str:

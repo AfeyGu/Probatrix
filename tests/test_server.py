@@ -140,12 +140,20 @@ def test_hash_check_stale(client: TestClient, tmp_path: Path) -> None:
 # ----------------------------------------------------------------------
 # 导出 HTML
 # ----------------------------------------------------------------------
+def test_run_returns_html(client: TestClient) -> None:
+    """直通管线:/api/run 直接返回 html;md 仍保留为导出物。"""
+    r = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}).json()
+    assert r["ok"] is True
+    assert "<h1>" in r["html"] and "class='formula'" in r["html"]
+    assert r["md"].startswith("# ")
+
+
 def test_export_html(client: TestClient) -> None:
-    md = client.post("/api/run", json={
+    html = client.post("/api/run", json={
         "template_id": "gl.calc", "params": {},
-    }).json()["md"]
+    }).json()["html"]
     r = client.post("/api/export/html", json={
-        "md": md, "title": "钢梁验算",
+        "html": html, "title": "钢梁验算",
         "meta": {"工程名称": "测试", "计算人": "张三", "日期": "2026-09-05"},
     })
     page = r.json()["html"]
@@ -155,19 +163,21 @@ def test_export_html(client: TestClient) -> None:
     assert "window.print" in page
 
 
-def test_export_pagebreak(client: TestClient) -> None:
+def test_export_html_passthrough(client: TestClient) -> None:
+    """服务端对内容不做任何再加工：原样注入模板(分页 div 由前端拼)。"""
     r = client.post("/api/export/html", json={
-        "md": "第一页\n\n<!-- pagebreak -->\n\n第二页",
+        "html": "<p>第一页</p><div class='page-break'></div><p>第二页</p>",
     })
-    assert "page-break" in r.json()["html"]
+    page = r.json()["html"]
+    assert "<p>第一页</p><div class='page-break'></div><p>第二页</p>" in page
 
 
 def test_export_html_offline(client: TestClient) -> None:
     """离线版：KaTeX 样式/脚本/字体全部内联，不依赖任何外部 URL。"""
-    md = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
-                     ).json()["md"]
+    html = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
+                       ).json()["html"]
     page = client.post("/api/export/html", json={
-        "md": md, "title": "离线", "inline_assets": True,
+        "html": html, "title": "离线", "inline_assets": True,
     }).json()["html"]
 
     assert "cdn.jsdelivr" not in page             # 无外部依赖
@@ -179,42 +189,9 @@ def test_export_html_offline(client: TestClient) -> None:
 
 def test_export_html_cdn_default(client: TestClient) -> None:
     """默认仍为 CDN 轻量版，保持小文件。"""
-    md = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
-                     ).json()["md"]
-    page = client.post("/api/export/html", json={"md": md}).json()["html"]
+    html = client.post("/api/run", json={"template_id": "gl.calc", "params": {}}
+                       ).json()["html"]
+    page = client.post("/api/export/html", json={"html": html}).json()["html"]
     assert "cdn.jsdelivr" in page
     assert "data:font/woff2" not in page
     assert len(page) < 100_000
-
-
-def test_render_fragment(client: TestClient) -> None:
-    r = client.post("/api/render", json={"md": "## 标题\n\n$$a+b$$"})
-    html = r.json()["html"]
-    assert "<h2>标题</h2>" in html
-    assert "$$a+b$$" in html
-
-
-def test_render_blockquote_not_mangled(client: TestClient) -> None:
-    """回归：> 先转义再剥前缀会留下 't;'。"""
-    html = client.post("/api/render", json={
-        "md": "> 依据：GB 50017-2017 第 4.1.1 条",
-    }).json()["html"]
-    assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in html
-    assert "t;" not in html
-
-
-def test_render_bold(client: TestClient) -> None:
-    """回归：**粗体** 不能字面输出（结论行依赖它）。"""
-    html = client.post("/api/render", json={
-        "md": "- **抗弯强度**：95.2 ≤ 215 —— **满足**",
-    }).json()["html"]
-    assert "<b>抗弯强度</b>" in html
-    assert "<b>满足</b>" in html
-    assert "**" not in html
-
-
-def test_render_escapes_xss(client: TestClient) -> None:
-    html = client.post("/api/render", json={
-        "md": "<script>alert(1)</script>",
-    }).json()["html"]
-    assert "<script>" not in html and "&lt;script&gt;" in html

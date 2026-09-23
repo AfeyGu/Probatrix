@@ -14,7 +14,7 @@
     POST   /api/project/load             从 .cbproj 载入
     GET    /api/hash-check               工程内模板 hash 与当前文件比对（失效提示）
     GET    /api/doc.css                  计算书文档排版 CSS（前端预览用）
-    POST   /api/export/html              md → 自包含 HTML（KaTeX + 打印样式）
+    POST   /api/export/html              html → 自包含 HTML（KaTeX + 打印样式）
 """
 
 from __future__ import annotations
@@ -128,14 +128,10 @@ class PathReq(APIModel):
 
 
 class ExportReq(APIModel):
-    md: str
+    html: str
     title: str = "计算书"
     meta: dict[str, str] = {}          # 工程名/计算人/日期/校对人等页眉字段
     inline_assets: bool = False        # 离线版：内联 KaTeX 与字体（~0.7 MB）
-
-
-class RenderReq(APIModel):
-    md: str
 
 
 # ----------------------------------------------------------------------
@@ -286,6 +282,7 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
     # ---- 导出 --------------------------------------------------------
     @app.post("/api/export/html")
     def export_html(req: ExportReq) -> dict[str, str]:
+        """items 直出的 HTML 原样注入导出模板（不做任何再加工）。"""
         meta_cells = "".join(f"<b>{html.escape(k)}：{html.escape(v)}</b>"
                              for k, v in req.meta.items())
         try:
@@ -297,13 +294,8 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
                 .replace("@@ASSETS@@", assets)
                 .replace("@@META@@", meta_cells)
                 .replace("@@DOCSTYLE@@", DOC_CSS)
-                .replace("@@CONTENT@@", _render_markdown(req.md)))
+                .replace("@@CONTENT@@", req.html))
         return {"html": page, "inline": str(req.inline_assets)}
-
-    # ---- 预览渲染（与导出同一套 md→HTML 逻辑）---------------------------
-    @app.post("/api/render")
-    def render(req: RenderReq) -> dict[str, str]:
-        return {"html": _render_markdown(req.md)}
 
     # ---- 文档排版 CSS：前端预览与导出共用 docstyle.DOC_CSS ---------------
     @app.get("/api/doc.css")
@@ -369,79 +361,10 @@ def _katex_inline_assets() -> tuple[str, str, str]:
 
 def _result_json(r: RunResult) -> dict[str, Any]:
     return {
-        "ok": r.ok, "md": r.md, "checks": r.checks, "metrics": r.metrics,
-        "max_ratio": r.max_ratio, "all_ok": r.all_ok,
+        "ok": r.ok, "md": r.md, "html": r.html, "checks": r.checks,
+        "metrics": r.metrics, "max_ratio": r.max_ratio, "all_ok": r.all_ok,
         "error_title": r.error_title, "error": r.error,
     }
-
-
-def _render_markdown(md: str) -> str:
-    """MVP 最小 md 渲染：标题/表格/引用/图片/列表/粗体；公式原样交给 KaTeX。"""
-    out: list[str] = []
-    in_table = False
-    for raw in md.splitlines():
-        line = raw.rstrip()
-        if line.startswith("<!--") and "pagebreak" in line:
-            out.append("<div class='page-break'></div>")
-            continue
-        if line.startswith("$$"):
-            out.append(f"<p class='formula'>{_esc(line)}</p>")
-            continue
-        if line.startswith("|"):
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if set("".join(cells)) <= {"-", ":", " "}:     # 分隔行
-                continue
-            if not in_table:
-                out.append("<table><tr>" + "".join(
-                    f"<th>{_inline(c)}</th>" for c in cells) + "</tr>")
-                in_table = True
-            else:
-                out.append("<tr>" + "".join(
-                    f"<td>{_inline(c)}</td>" for c in cells) + "</tr>")
-            continue
-        if in_table:
-            out.append("</table>")
-            in_table = False
-        if not line:
-            continue
-        # 先剥前缀（在转义之前），再转义剩余内容
-        for prefix, tag in (("### ", "h3"), ("## ", "h2"), ("# ", "h1"),
-                            ("> ", "blockquote"), ("- ", "li")):
-            if line.startswith(prefix):
-                body = _inline(line[len(prefix):])
-                if tag == "li":
-                    out.append(f"<p class='item'>• {body}</p>")
-                else:
-                    out.append(f"<{tag}>{body}</{tag}>")
-                break
-        else:
-            if line.startswith("!["):
-                alt, _, rest = line[2:].partition("](")
-                src = rest.rstrip(")")
-                out.append(
-                    f"<p style='text-align:center'>"
-                    f"<img src='{_esc(src)}' alt='{_esc(alt)}'></p>")
-                if alt and alt != "图":          # 小注随 alt 传递，居中显示
-                    out.append(
-                        f"<p style='text-align:center'>"
-                        f"<small>{_inline(alt)}</small></p>")
-            else:
-                out.append(f"<p>{_inline(line)}</p>")
-    if in_table:
-        out.append("</table>")
-    return "\n".join(out)
-
-
-def _esc(text: str) -> str:
-    return html.escape(text, quote=True)
-
-
-def _inline(text: str) -> str:
-    """转义后补行内样式：仅粗体（MVP 够用）。"""
-    return _BOLD_RE.sub(r"<b>\1</b>", _esc(text))
-
-
-_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
 
 def default_template_dir() -> Path:
@@ -517,7 +440,7 @@ def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str
 
 def _apply_window_icon() -> None:
     """WM_SETICON 设置窗口标题栏/任务栏图标（pywebview 无 icon API）。
-    打包（launcher→venv）与源码运行均生效：图标来自包内 icon.ico。"""
+    打包（CalcBook.exe→venv）与源码运行均生效：图标来自包内 icon.ico。"""
     import time
     import ctypes
     ico = Path(__file__).resolve().parent / "icon.ico"

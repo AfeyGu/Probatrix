@@ -26,7 +26,6 @@ export const api = {
   saveProject: (path) => req('POST', '/api/project/save', { path }),
   loadProject: (path) => req('POST', '/api/project/load', { path }),
   hashCheck: () => req('GET', '/api/hash-check'),
-  render: (md) => req('POST', '/api/render', { md }),
-  exportHtml: (md, title, meta, inline_assets = false) =>
-    req('POST', '/api/export/html', { md, title, meta, inline_assets }),
+  exportHtml: (html, title, meta, inline_assets = false) =>
+    req('POST', '/api/export/html', { html, title, meta, inline_assets }),
 }

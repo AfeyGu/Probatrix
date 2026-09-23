@@ -25,7 +25,8 @@ class RunResult:
     """一次模板执行的完整结果（成功与失败都是它，不抛异常）。"""
 
     ok: bool = False
-    md: str = ""                                # CalcBook 渲染的 md+LaTeX
+    md: str = ""                                # Markdown 导出物（纯阅读，不参与渲染）
+    html: str = ""                              # items 直出的 HTML（预览/导出用）
     checks: list[dict[str, Any]] = field(default_factory=list)   # 供表格/汇总
     metrics: dict[str, Any] = field(default_factory=dict)        # 批量表格附加指标列
     max_ratio: float | None = None
@@ -35,6 +36,7 @@ class RunResult:
 
     def from_book(self, book: Any) -> "RunResult":
         self.md = book.to_markdown()
+        self.html = book.to_html()
         self.metrics = dict(getattr(book, "metrics", {}) or {})
         self.checks = [
             {
@@ -95,7 +97,7 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
             error_title="计算出错",
             error=traceback.format_exc(),
         )
-    if not hasattr(book, "to_markdown"):        # 模板作者忘了 return CalcBook
+    if not hasattr(book, "to_html"):            # 模板作者忘了 return CalcBook
         return RunResult(
             error_title="模板返回值类型错误",
             error=(
@@ -112,7 +114,7 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
 _INSTALL_HINT = (
     "解决办法：\n"
     "  1) 命令行安装：{cmd}\n"
-    "  2) 离线发布包用户：关闭 CalcBook 后重新运行 launcher.exe，"
+    "  2) 离线发布包用户：关闭 CalcBook 后重新运行 CalcBook.exe，"
     "启动器会自动安装模板需要的库\n"
 )
 
