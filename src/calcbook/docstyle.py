@@ -23,4 +23,21 @@ DOC_CSS = """\
 .cb-doc code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
 .cb-doc img { max-width: 100%; }
 .cb-doc .katex-display { margin: 10px 0; }
+
+/* ---- 图文环绕（side="left"/"right"）：文字段落贴边环绕，块级内容收边回全宽 ---- */
+.cb-doc figure.cb-float-right, .cb-doc figure.cb-float-left {
+  width: 45%; margin: 6px 0 10px; }
+.cb-doc figure.cb-float-right { float: right; margin-left: 16px; }
+.cb-doc figure.cb-float-left { float: left; margin-right: 16px; }
+.cb-doc figure img { width: 100%; }
+.cb-doc figcaption { text-align: center; font-size: 12.5px; color: #555; margin-top: 6px; }
+.cb-doc h1, .cb-doc h2, .cb-doc h3, .cb-doc p.formula, .cb-doc p.item,
+.cb-doc blockquote, .cb-doc table { clear: both; }
+
+/* ---- 打印（PDF 送审）：分页保护 ---- */
+@media print {
+  .cb-doc table, .cb-doc p.formula,
+  .cb-doc figure.cb-float-right, .cb-doc figure.cb-float-left { page-break-inside: avoid; }
+  .cb-doc h1, .cb-doc h2, .cb-doc h3 { page-break-after: avoid; }
+}
 """

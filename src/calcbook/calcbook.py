@@ -50,6 +50,7 @@ class _Item:
     # image 专用
     path: str = ""
     caption: str = ""
+    side: str = ""                  # ""（独立居中）| "left" | "right"（浮动环绕）
     # table 专用
     header: list[str] = field(default_factory=list)
     rows: list[list[Any]] = field(default_factory=list)
@@ -99,18 +100,27 @@ class CalcBook:
     # ------------------------------------------------------------------
     # 插图
     # ------------------------------------------------------------------
-    def image(self, path: str, *, caption: str = "") -> "CalcBook":
-        """插入图片（URL 或相对路径；导出为文件时相对路径会失效，慎用）。"""
-        self._items.append(_Item(kind="image", path=path, caption=caption))
+    def image(self, path: str, *, caption: str = "",
+              side: Literal["left", "right"] | None = None) -> "CalcBook":
+        """插入图片（URL 或相对路径；导出为文件时相对路径会失效，慎用）。
+
+        side="left"/"right"：图文环绕——图片浮动到指定一侧（约占 45% 宽），
+        其后的文字段落贴边环绕；公式/表格/标题/判定行自动收边回全宽。
+        """
+        if side not in (None, "left", "right"):
+            raise ValueError(f"side 只支持 None/'left'/'right'，收到 {side!r}")
+        self._items.append(_Item(kind="image", path=path, caption=caption,
+                                 side=side or ""))
         return self
 
     def image_bytes(self, data: bytes, *, mime: str = "image/png",
-                    caption: str = "") -> "CalcBook":
+                    caption: str = "", side: Literal["left", "right"] | None = None) -> "CalcBook":
         """插入二进制图片（推荐）：转 base64 data URI，预览/导出/离线全可用。
 
-        典型来源：matplotlib 画截面简图/计算简图，savefig 到 BytesIO。"""
+        典型来源：matplotlib 画截面简图/计算简图，savefig 到 BytesIO。
+        side 语义同 image()。"""
         b64 = base64.b64encode(data).decode("ascii")
-        return self.image(f"data:{mime};base64,{b64}", caption=caption)
+        return self.image(f"data:{mime};base64,{b64}", caption=caption, side=side)
 
     # ------------------------------------------------------------------
     # 表格（自由内容用；验算结论汇总是自动生成的，不需要模板作者手写）
@@ -236,11 +246,17 @@ class CalcBook:
                 out.extend(_cite_html(it))
             elif k == "image":
                 alt = it.caption or "图"
-                out.append(f"<p style='text-align:center'>"
-                           f"<img src='{_esc(it.path)}' alt='{_esc(alt)}'></p>")
-                if alt != "图":
+                if it.side:      # 图文环绕：浮动 figure（收边规则见 docstyle.py）
+                    cap = (f"<figcaption>{_inline(alt)}</figcaption>"
+                           if alt != "图" else "")
+                    out.append(f"<figure class='cb-float-{it.side}'>"
+                               f"<img src='{_esc(it.path)}' alt='{_esc(alt)}'>{cap}</figure>")
+                else:
                     out.append(f"<p style='text-align:center'>"
-                               f"<small>{_inline(alt)}</small></p>")
+                               f"<img src='{_esc(it.path)}' alt='{_esc(alt)}'></p>")
+                    if alt != "图":
+                        out.append(f"<p style='text-align:center'>"
+                                   f"<small>{_inline(alt)}</small></p>")
             elif k == "table":
                 out.extend(_table_html(it.header, it.rows))
         if with_summary and self.checks:

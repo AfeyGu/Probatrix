@@ -3,6 +3,8 @@
 结构只由 API 决定；文本一律 HTML 转义；行内格式仅 `**粗体**` 与 `$…$`。
 本文件与契约文档同步维护——改这里必须同步文档，反之亦然。
 """
+import pytest
+
 from calcbook import CalcBook
 
 
@@ -99,3 +101,28 @@ def test_bold_in_table_cell_and_caption() -> None:
     h = b.to_html(with_summary=False)
     assert "<td><b>梁</b></td>" in h
     assert "<small><b>图</b>注</small>" in h
+
+
+# ---------------------------------------------------------------- 图文环绕（side）
+def test_image_float_right_with_caption() -> None:
+    b = CalcBook()
+    b.p("截面说明。")
+    b.image_bytes(b"\x89PNG-float", caption="截面简图", side="right")
+    b.p("环绕段落。")
+    b.formula(r"E=mc^2")
+    h = b.to_html(with_summary=False)
+    assert "<figure class='cb-float-right'><img src='data:image/png;base64," in h
+    assert "<figcaption>截面简图</figcaption></figure>" in h
+    assert "<small>" not in h          # 环绕图名走 figcaption，不再有独立小注
+
+
+def test_image_float_left_no_caption() -> None:
+    h = CalcBook().image_bytes(b"x", side="left").to_html(with_summary=False)
+    assert "<figure class='cb-float-left'><img src='data:image/png;base64,eA==' alt='图'></figure>" in h
+    assert "<figcaption>" not in h     # 无图名则无 caption 元素
+
+
+def test_side_unknown_rejected() -> None:
+    import pydantic
+    with pytest.raises(ValueError):
+        CalcBook().image_bytes(b"x", side="up")  # type: ignore[arg-type]

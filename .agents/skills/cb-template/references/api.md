@@ -128,8 +128,8 @@ Field(默认值,
 | `subs(latex, cite=None)` | **代入数值**（跟在 formula 后） | 独立公式块 |
 | `check(…)` | 验算项（见 §4） | 判定行 + 自动汇总表 |
 | `table(header, rows)` | 自由表格 | md 表格 |
-| `image_bytes(data, mime, caption)` | **内嵌图片**（推荐，见 §5） | 居中图片 + 居中图名（小字） |
-| `image(path, caption)` | URL 图片（导出离线文件时相对路径会裂图，**慎用**） | 同上 |
+| `image_bytes(data, mime, caption, side=None)` | **内嵌图片**（推荐，见 §5） | 居中图片 + 居中图名（小字）；`side="right"/"left"` 图文环绕 |
+| `image(path, caption, side=None)` | URL 图片（导出离线文件时相对路径会裂图，**慎用**） | 同上 |
 | `metric(name, value)` | 批量表格附加指标（不进正文，见 §4 末） | 无（仅进批量结果列） |
 
 `cite=("GB 50017-2017", "4.1.1")` 渲染为公式下方的引用块「依据：GB 50017-2017 第 4.1.1 条」。
@@ -304,8 +304,8 @@ check(name, value, limit,
       op="le" | "ge",                            # 默认 "le"
       expr=None, unit=None, cite=None, ratio=None)
 table(header: list[str], rows: list[list])       # 自由表格
-image_bytes(data: bytes, mime="image/png", caption="")
-image(path, caption="")                          # 不推荐
+image_bytes(data: bytes, mime="image/png", caption="", side=None)
+image(path, caption="", side=None)               # 不推荐；side="right"/"left" 图文环绕
 metric(name: str, value)                         # 批量附加指标列（不进正文）
 
 # ---------- 属性 ----------
