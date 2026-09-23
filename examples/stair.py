@@ -305,40 +305,80 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         ["踏步刚度系数 λ", f"{p.step_factor:g}", "纵筋级别", p.rebar],
     ])
     b.p("梯段板厚度按经验公式估算：板厚 = 向上取整10mm[(a·n+L1+L2)/k]，且不小于 100mm。")
-    b.formula(r"t = \max\left\{\left\lceil \dfrac{a n + L_1 + L_2}{10\,k} \right\rceil \times 10,\ 100\right\}")
-    b.subs(rf"t = \max\left\{{\left\lceil \dfrac{{{p.a:g} \times {p.n:g} + {p.L1:g} + {p.L2:g}}}{{10 \times {k:g}}} \right\rceil \times 10,\ 100\right\}} = {t:g}\ \mathrm{{mm}}")
+    b.derive(
+        r"t",
+        r"\max\left\{\left\lceil \dfrac{a n + L_1 + L_2}{10\,k} \right\rceil \times 10,\ 100\right\}",
+        rf"\max\left\{{\left\lceil \dfrac{{{p.a:g} \times {p.n:g} + {p.L1:g} + {p.L2:g}}}{{10 \times {k:g}}} \right\rceil \times 10,\ 100\right\}} = {t:g}\ \mathrm{{mm}}",
+    )
     b.p(f"注：γ0={p.gamma0:g} 仅列出；荷载组合与原表一致，未乘入 γ0。")
 
     b.h2("四、梯段板荷载计算")
     b.p("荷载均按水平投影面每平方米计。梯段板倾斜角：")
-    b.formula(r"\alpha = \arctan \dfrac{d}{a}")
-    b.subs(rf"\alpha = \arctan \dfrac{{{p.d:g}}}{{{p.a:g}}} = {alpha:.4f}\ \mathrm{{rad}}"
-           rf"\ (\cos\alpha = {cos_a:.4f})")
+    b.derive(
+        r"\alpha",
+        r"\arctan \dfrac{d}{a}",
+        rf"\arctan \dfrac{{{p.d:g}}}{{{p.a:g}}} = {alpha:.4f}\ \mathrm{{rad}}"
+           rf"\ (\cos\alpha = {cos_a:.4f})",
+    )
     b.p("恒载标准值分项：")
-    b.formula(r"g_{k1} = \dfrac{r \cdot d}{2} \quad (三角形踏步)")
-    b.subs(rf"g_{{k1}} = \dfrac{{{p.r_c:g} \times {p.d:g}}}{{2 \times 1000}} = {g1:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"g_{k2} = \dfrac{t \cdot r}{1000\cos\alpha} \quad (梯段板自重)")
-    b.subs(rf"g_{{k2}} = \dfrac{{{t:g} \times {p.r_c:g}}}{{1000 \times {cos_a:.4f}}} = {g2:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"g_{k3} = \dfrac{(a+d)\, t_1 r_1}{1000\,a} \quad (面层，踏步平、立面)")
-    b.subs(rf"g_{{k3}} = \dfrac{{({p.a:g}+{p.d:g}) \times {p.t1:g} \times {p.r1:g}}}{{1000 \times {p.a:g}}} = {g3:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"g_{k4} = \dfrac{t_2 r_2}{1000\cos\alpha} \quad (底面抹灰)")
-    b.subs(rf"g_{{k4}} = \dfrac{{{p.t2:g} \times {p.r2:g}}}{{1000 \times {cos_a:.4f}}} = {g4:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"g_{k5} = \dfrac{g}{B \cos\alpha} \quad (栏杆，线荷载摊到板宽)")
-    b.subs(rf"g_{{k5}} = \dfrac{{{p.g_rail:g}}}{{{p.B / 1000:g} \times {cos_a:.4f}}} = {g5:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"g_k = g_{k1} + g_{k2} + g_{k3} + g_{k4} + g_{k5}")
-    b.subs(rf"g_k = {g1:.3f} + {g2:.3f} + {g3:.3f} + {g4:.3f} + {g5:.3f} = {g_k:.3f}\ \mathrm{{kN/m^2}}")
+    b.derive(
+        r"g_{k1}",
+        r"\dfrac{r \cdot d}{2}",
+        rf"\dfrac{{{p.r_c:g} \times {p.d:g}}}{{2 \times 1000}} = {g1:.3f}\ \mathrm{{kN/m^2}}" r"\quad (三角形踏步)",
+    )
+    b.derive(
+        r"g_{k2}",
+        r"\dfrac{t \cdot r}{1000\cos\alpha}",
+        rf"\dfrac{{{t:g} \times {p.r_c:g}}}{{1000 \times {cos_a:.4f}}} = {g2:.3f}\ \mathrm{{kN/m^2}}" r"\quad (梯段板自重)",
+    )
+    b.derive(
+        r"g_{k3}",
+        r"\dfrac{(a+d)\, t_1 r_1}{1000\,a}",
+        rf"\dfrac{{({p.a:g}+{p.d:g}) \times {p.t1:g} \times {p.r1:g}}}{{1000 \times {p.a:g}}} = {g3:.3f}\ \mathrm{{kN/m^2}}" r"\quad (面层，踏步平、立面)",
+    )
+    b.derive(
+        r"g_{k4}",
+        r"\dfrac{t_2 r_2}{1000\cos\alpha}",
+        rf"\dfrac{{{p.t2:g} \times {p.r2:g}}}{{1000 \times {cos_a:.4f}}} = {g4:.3f}\ \mathrm{{kN/m^2}}" r"\quad (底面抹灰)",
+    )
+    b.derive(
+        r"g_{k5}",
+        r"\dfrac{g}{B \cos\alpha}",
+        rf"\dfrac{{{p.g_rail:g}}}{{{p.B / 1000:g} \times {cos_a:.4f}}} = {g5:.3f}\ \mathrm{{kN/m^2}}" r"\quad (栏杆，线荷载摊到板宽)",
+    )
+    b.derive(
+        r"g_k",
+        r"g_{k1} + g_{k2} + g_{k3} + g_{k4} + g_{k5}",
+        rf"{g1:.3f} + {g2:.3f} + {g3:.3f} + {g4:.3f} + {g5:.3f} = {g_k:.3f}\ \mathrm{{kN/m^2}}",
+    )
     b.p("楼梯净跨与计算跨度：")
-    b.formula(r"L_n = L + L_1 + L_2, \qquad L = a \cdot n")
-    b.subs(rf"L_n = {L_hor:g} + {p.L1:g} + {p.L2:g} = {l_n * 1000:g}\ \mathrm{{mm}} = {l_n:g}\ \mathrm{{m}}")
-    b.formula(r"l_0 = \min\left\{ L_n + \dfrac{b_A + b_B}{2},\ 1.05 L_n \right\}")
-    b.subs(rf"l_0 = \min\left\{{ {l_n:g} + {(p.b_a + p.b_b) / 2000:g},\ 1.05 \times {l_n:g} \right\}} = {l0:g}\ \mathrm{{m}}")
+    b.derive(
+        r"L",
+        rf"{p.a:g} \cdot {p.n:g} = {L_hor:g}\ \mathrm{{mm}}",
+    )
+    b.derive(
+        r"L_n",
+        r"L + L_1 + L_2",
+        rf"{L_hor:g} + {p.L1:g} + {p.L2:g} = {l_n * 1000:g}\ \mathrm{{mm}} = {l_n:g}\ \mathrm{{m}}",
+    )
+    b.derive(
+        r"l_0",
+        r"\min\left\{ L_n + \dfrac{b_A + b_B}{2},\ 1.05 L_n \right\}",
+        rf"\min\left\{{ {l_n:g} + {(p.b_a + p.b_b) / 2000:g},\ 1.05 \times {l_n:g} \right\}} = {l0:g}\ \mathrm{{m}}",
+    )
 
     b.h2("五、荷载简图与荷载组合")
     b.image(_IMG_LOAD, caption="荷载简图")
-    b.formula(r"p_u = \gamma_G g_k + \gamma_Q q_k \qquad (\text{基本组合})")
-    b.subs(rf"p_u = {p.gamma_g:g} \times {g_k:.3f} + {p.gamma_q:g} \times {p.q_live:g} = {p_u:.3f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"p_{qp} = g_k + \psi_q q_k \qquad (\text{准永久组合})")
-    b.subs(rf"p_{{qp}} = {g_k:.3f} + {p.psi_q:g} \times {p.q_live:g} = {p_qp:.3f}\ \mathrm{{kN/m^2}}")
+    b.derive(
+        r"p_u",
+        r"\gamma_G g_k + \gamma_Q q_k \qquad (\text{基本组合})",
+        rf"{p.gamma_g:g} \times {g_k:.3f} + {p.gamma_q:g} \times {p.q_live:g} = {p_u:.3f}\ \mathrm{{kN/m^2}}",
+    )
+    b.derive(
+        r"p_{qp}",
+        r"g_k + \psi_q q_k \qquad (\text{准永久组合})",
+        rf"{g_k:.3f} + {p.psi_q:g} \times {p.q_live:g} = {p_qp:.3f}\ \mathrm{{kN/m^2}}",
+    )
 
     b.h2("六、内力计算")
     b.p("按支座形式取弯矩系数（每 m 板宽）：两端弹性——支座 1/16、跨中 1/10；"
@@ -358,8 +398,11 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
 
     b.h2("七、配筋计算")
     b.p("按单筋矩形截面（b=1000mm）计算，截面有效高度按选筋表最大直径取：")
-    b.formula(r"h_0 = t - c - d_{\max}/2")
-    b.subs(rf"h_0 = {t:g} - {p.cover:g} - {D_MAX_H0:g}/2 = {h0:g}\ \mathrm{{mm}}")
+    b.derive(
+        r"h_0",
+        r"t - c - d_{\max}/2 = "
+        rf"{t:g} - {p.cover:g} - {D_MAX_H0:g}/2 = {h0:g}\ \mathrm{{mm}}",
+    )
     b.p(f"最小配筋面积：$A_{{s,\\min}} = \\rho_{{\\min}} b h = "
         f"{p.rho_min:g}\\% \\times 1000 \\times {t:g} = {as_min:.0f}\\ \\mathrm{{mm^2}}$。")
     for s in secs:
@@ -367,17 +410,29 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         if s["alpha_s"] == 0 and s["as_c"] == 0:
             b.p("该截面弯矩为 0，按最小配筋率控制。")
         else:
-            b.formula(r"\alpha_s = \dfrac{M}{\alpha_1 f_c b h_0^2}")
-            b.subs(rf"\alpha_s = \dfrac{{{abs(s['m']) * 1e6:.0f}}}{{1 \times {fc:g} \times 1000 \times {h0:g}^2}} = {s['alpha_s']:.4f}")
-            b.formula(r"\xi = 1 - \sqrt{1 - 2\alpha_s}")
-            b.subs(rf"\xi = 1 - \sqrt{{1 - 2 \times {s['alpha_s']:.4f}}} = {s['xi']:.4f}")
+            b.derive(
+                r"\alpha_s",
+                r"\dfrac{M}{\alpha_1 f_c b h_0^2}",
+                rf"\dfrac{{{abs(s['m']) * 1e6:.0f}}}{{1 \times {fc:g} \times 1000 \times {h0:g}^2}} = {s['alpha_s']:.4f}",
+            )
+            b.derive(
+                r"\xi",
+                r"1 - \sqrt{1 - 2\alpha_s} = "
+                rf"1 - \sqrt{{1 - 2 \times {s['alpha_s']:.4f}}} = {s['xi']:.4f}",
+            )
             b.check(f"{s['tag']}受压区高度", value=s["xi"], limit=xi_b,
                     expr=r"\xi \le \xi_b")
-            b.formula(r"\gamma_s = 1 - 0.5\xi")
-            b.subs(rf"\gamma_s = 1 - 0.5 \times {s['xi']:.4f} = {s['gamma_s']:.4f}")
-            b.formula(r"A_s = \dfrac{M}{f_y \gamma_s h_0}")
-            b.subs(rf"A_s = \dfrac{{{abs(s['m']) * 1e6:.0f}}}{{{fy:g} \times {s['gamma_s']:.4f} \times {h0:g}}} = {s['as_c']:.1f}\ \mathrm{{mm^2}}")
-            b.subs(rf"A_s = \max( {s['as_c']:.1f},\ {as_min:.0f} ) = {s['as_des']:.1f}\ \mathrm{{mm^2}}")
+            b.derive(
+                r"\gamma_s",
+                r"1 - 0.5\xi = "
+                rf"1 - 0.5 \times {s['xi']:.4f} = {s['gamma_s']:.4f}",
+            )
+            b.derive(
+                r"A_s",
+                r"\dfrac{M}{f_y \gamma_s h_0}",
+                rf"\dfrac{{{abs(s['m']) * 1e6:.0f}}}{{{fy:g} \times {s['gamma_s']:.4f} \times {h0:g}}} = {s['as_c']:.1f}\ \mathrm{{mm^2}}" r" = "
+                rf"\max( {s['as_c']:.1f},\ {as_min:.0f} ) = {s['as_des']:.1f}\ \mathrm{{mm^2}}",
+            )
         b.p(rf"选用 $\Phi{s['dia']}@{s['sp']}$（$A_s = {s['as_prov']:.1f}\ \mathrm{{mm^2}}$）。")
         b.check(f"{s['tag']}最小配筋", value=s["as_prov"], limit=as_min,
                 op="ge", expr=r"A_s \ge \rho_{\min} b h", unit="mm²")
@@ -390,10 +445,16 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         if s["sig"] == 0:
             b.p("该截面弯矩为 0，钢筋应力为 0，裂缝宽度为 0。")
         else:
-            b.formula(r"\sigma_s = \dfrac{M_{qp}}{0.87 h_0 A_s}")
-            b.subs(rf"\sigma_s = \dfrac{{{abs(s['m_q']) * 1e6:.0f}}}{{0.87 \times {s['h0c']:g} \times {s['as_prov']:.1f}}} = {s['sig']:.1f}\ \mathrm{{N/mm^2}}")
-            b.formula(r"\psi = 1.1 - \dfrac{0.65 f_{tk}}{\rho_{te} \sigma_s} \quad (\text{限 } [0.2, 1])")
-            b.subs(rf"\psi = 1.1 - \dfrac{{0.65 \times {ftk:g}}}{{{s['rte']:.4f} \times {s['sig']:.1f}}} = {s['psi']:.3f}")
+            b.derive(
+                r"\sigma_s",
+                r"\dfrac{M_{qp}}{0.87 h_0 A_s}",
+                rf"\dfrac{{{abs(s['m_q']) * 1e6:.0f}}}{{0.87 \times {s['h0c']:g} \times {s['as_prov']:.1f}}} = {s['sig']:.1f}\ \mathrm{{N/mm^2}}",
+            )
+            b.derive(
+                r"\psi",
+                r"1.1 - \dfrac{0.65 f_{tk}}{\rho_{te} \sigma_s}",
+                rf"1.1 - \dfrac{{0.65 \times {ftk:g}}}{{{s['rte']:.4f} \times {s['sig']:.1f}}} = {s['psi']:.3f}" r"\quad (\text{限 } [0.2, 1])",
+            )
         b.formula(r"\omega_{\max} = \alpha_{cr} \psi \dfrac{\sigma_s}{E_s}\left( 1.9 c_s + 0.08 \dfrac{d_{eq}}{\rho_{te}} \right)")
         if s["sig"] == 0:
             b.subs(rf"\omega_{{\max}} = 0\ \mathrm{{mm}} \quad (\rho_{{te}} = {s['rte']:.4f})")
@@ -405,19 +466,42 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
     b.h2("九、挠度验算")
     b.p("按准永久组合计算跨中长期挠度，考虑踏步参与受力后的等效截面高度，"
         "挠度限值 [f]=l0/200。")
-    b.formula(r"\rho_{te} = \max\left\{ \dfrac{A_s}{0.5 \times 1000 \times t},\ 0.01 \right\}, \qquad \sigma_s = \dfrac{M_{qp}}{0.87 h_0 A_s}")
-    b.subs(rf"\rho_{{te}} = {rte_d:.4f}, \qquad \sigma_s = \dfrac{{{mid['m_q'] * 1e6:.0f}}}{{0.87 \times {h0_d:g} \times {mid['as_prov']:.1f}}} = {sig_d:.1f}\ \mathrm{{N/mm^2}}")
+    b.derive(
+        r"\rho_{te}",
+        r"\max\left\{ \dfrac{A_s}{0.5 \times 1000 \times t},\ 0.01 \right\}",
+        rf"{rte_d:.4f}",
+    )
+    b.derive(
+        r"\sigma_s",
+        r"\dfrac{M_{qp}}{0.87 h_0 A_s}",
+        rf"\dfrac{{{mid['m_q'] * 1e6:.0f}}}{{0.87 \times {h0_d:g} \times {mid['as_prov']:.1f}}} = {sig_d:.1f}\ \mathrm{{N/mm^2}}",
+    )
     b.subs(rf"\psi = 1.1 - \dfrac{{0.65 \times {ftk:g}}}{{{rte_d:.4f} \times {sig_d:.1f}}} = {psi_d:.3f}")
-    b.formula(r"\alpha_E = \dfrac{E_s}{E_c}, \qquad \rho = \dfrac{A_s}{1000 h_0}")
-    b.subs(rf"\alpha_E = {a_e:.3f}, \qquad \rho = {rho_d:.5f}")
-    b.formula(r"h_0' = h_0 + \lambda\, d\cos\alpha \quad (\text{考虑踏步刚度后})")
-    b.subs(rf"h_0' = {h0_d:g} + {p.step_factor:g} \times {p.d:g} \times {cos_a:.4f} = {h0_step:.1f}\ \mathrm{{mm}}")
-    b.formula(r"B_s = \dfrac{E_s A_s h_0'^2}{1.15\psi + 0.2 + 6\alpha_E \rho}")
-    b.subs(rf"B_s = \dfrac{{{Es:.0f} \times {mid['as_prov']:.1f} \times {h0_step:.1f}^2}}{{1.15 \times {psi_d:.3f} + 0.2 + 6 \times {a_e:.3f} \times {rho_d:.5f}}} = {b_s:.3e}\ \mathrm{{N \cdot mm^2}}")
-    b.formula(r"B_l = \dfrac{B_s}{2} \quad (\theta = 2)")
-    b.subs(rf"B_l = {b_l:.3e}\ \mathrm{{N \cdot mm^2}}")
-    b.formula(r"f = \eta \cdot p_{qp} \cdot l_0^4 \times 10^{12} / B_l")
-    b.subs(rf"f = {DEFLECT_COEF[p.support]:.5f} \times {p_qp:.3f} \times {l0:g}^4 \times 10^{{12}} / {b_l:.3e} = {f:.2f}\ \mathrm{{mm}}")
+    b.derive(
+        r"\alpha_E",
+        r"\dfrac{E_s}{E_c}, \qquad \rho = \dfrac{A_s}{1000 h_0}",
+        rf"{a_e:.3f}, \qquad \rho = {rho_d:.5f}",
+    )
+    b.derive(
+        r"h_0'",
+        r"h_0 + \lambda\, d\cos\alpha",
+        rf"{h0_d:g} + {p.step_factor:g} \times {p.d:g} \times {cos_a:.4f} = {h0_step:.1f}\ \mathrm{{mm}}" r"\quad (\text{考虑踏步刚度后})",
+    )
+    b.derive(
+        r"B_s",
+        r"\dfrac{E_s A_s h_0'^2}{1.15\psi + 0.2 + 6\alpha_E \rho}",
+        rf"\dfrac{{{Es:.0f} \times {mid['as_prov']:.1f} \times {h0_step:.1f}^2}}{{1.15 \times {psi_d:.3f} + 0.2 + 6 \times {a_e:.3f} \times {rho_d:.5f}}} = {b_s:.3e}\ \mathrm{{N \cdot mm^2}}",
+    )
+    b.derive(
+        r"B_l",
+        r"\dfrac{B_s}{2} = "
+        rf"{b_l:.3e}\ \mathrm{{N \cdot mm^2}}" r"\quad (\theta = 2)",
+    )
+    b.derive(
+        r"f",
+        r"\eta \cdot p_{qp} \cdot l_0^4 \times 10^{12} / B_l",
+        rf"{DEFLECT_COEF[p.support]:.5f} \times {p_qp:.3f} \times {l0:g}^4 \times 10^{{12}} / {b_l:.3e} = {f:.2f}\ \mathrm{{mm}}",
+    )
     b.check("跨中挠度", value=f, limit=f_lim,
             expr=r"f \le [f]=l_0/200", unit="mm")
 

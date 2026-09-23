@@ -53,8 +53,7 @@ def calc(p: GLParams) -> CalcBook:
     b.derive(
         r"\sigma",
         r"\dfrac{M_x}{\gamma_x W_x} \le f",
-        rf"\dfrac{{{p.Mx:g} \times 10^6}}{{{p.gamma_x:.2f} \times {p.Wx:,.0f}}}",
-        rf"{sigma:.1f}\ \mathrm{{N/mm^2}}",
+        rf"\dfrac{{{p.Mx:g} \times 10^6}}{{{p.gamma_x:.2f} \times {p.Wx:,.0f}}} = {sigma:.1f}\ \mathrm{{N/mm^2}}",
         cite=("GB 50017-2017", "4.1.1"),
     )
     b.check(

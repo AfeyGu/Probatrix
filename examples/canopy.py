@@ -292,64 +292,102 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
     b.h2("三、弯矩计算")
     b.h3("1. 恒载")
     b.p("根部板重与端部板重（板自重按面积分布）：")
-    b.formula(r"q_1 = \dfrac{r \cdot h_1}{1000}")
-    b.subs(rf"q_1 = \dfrac{{{p.r_c:g} \times {p.h1:g}}}{{1000}} = {q1:.2f}\ \mathrm{{kN/m^2}}")
-    b.formula(r"q_2 = \dfrac{r \cdot h_2}{1000}")
-    b.subs(rf"q_2 = \dfrac{{{p.r_c:g} \times {p.h2:g}}}{{1000}} = {q2:.2f}\ \mathrm{{kN/m^2}}")
+    b.derive(
+        r"q_1",
+        r"\dfrac{r \cdot h_1}{1000}",
+        rf"\dfrac{{{p.r_c:g} \times {p.h1:g}}}{{1000}} = {q1:.2f}\ \mathrm{{kN/m^2}}",
+    )
+    b.derive(
+        r"q_2",
+        r"\dfrac{r \cdot h_2}{1000}",
+        rf"\dfrac{{{p.r_c:g} \times {p.h2:g}}}{{1000}} = {q2:.2f}\ \mathrm{{kN/m^2}}",
+    )
     b.p("翻边自重（按线荷载沿板长分布，作用在板端）：")
-    b.formula(r"Q_3 = \dfrac{r \cdot b \cdot h_3}{10^{6}}")
-    b.subs(rf"Q_3 = \dfrac{{{p.r_c:g} \times {p.b:g} \times {p.h3:g}}}{{10^{{6}}}} = {Q3:.2f}\ \mathrm{{kN/m}}")
+    b.derive(
+        r"Q_3",
+        r"\dfrac{r \cdot b \cdot h_3}{10^{6}}",
+        rf"\dfrac{{{p.r_c:g} \times {p.b:g} \times {p.h3:g}}}{{10^{{6}}}} = {Q3:.2f}\ \mathrm{{kN/m}}",
+    )
 
     b.h3("2. 恒载下弯矩标准值 Mk1")
     b.p("悬臂受弯，根部弯矩最大。恒载包括三部分：")
     b.p("**(a) 变厚度板自重**——梯形分布（端部 q2 均布 + 三角形 q1-q2）：")
-    b.formula(
-        r"M_{k1}^{(a)} = \dfrac{1}{2} q_2 L^2 + \dfrac{1}{6} (q_1 - q_2) L^2")
-    b.subs(
-        rf"M_{{k1}}^{{(a)}} = \dfrac{{1}}{{2}} \times {q2:.2f} \times {L_m:g}^2"
+    b.derive(
+        r"M_{k1}^{(a)}",
+        r"\dfrac{1}{2} q_2 L^2 + \dfrac{1}{6} (q_1 - q_2) L^2",
+        rf"\dfrac{{1}}{{2}} \times {q2:.2f} \times {L_m:g}^2"
         rf" + \dfrac{{1}}{{6}} \times ({q1:.2f} - {q2:.2f}) \times {L_m:g}^2"
-        rf" = {0.5 * q2 * L_m**2 + (q1 - q2) * L_m**2 / 6.0:.3f}\ \mathrm{{kN \cdot m/m}}")
+        rf" = {0.5 * q2 * L_m**2 + (q1 - q2) * L_m**2 / 6.0:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
     b.p("**(b) 板面粉刷（面层）**——均布荷载：")
-    b.formula(r"M_{k1}^{(b)} = \dfrac{1}{2} q_{q1} L^2")
-    b.subs(rf"M_{{k1}}^{{(b)}} = \dfrac{{1}}{{2}} \times {p.qq1:g} \times {L_m:g}^2"
-           rf" = {0.5 * p.qq1 * L_m**2:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_{k1}^{(b)}",
+        r"\dfrac{1}{2} q_{q1} L^2",
+        rf"\dfrac{{1}}{{2}} \times {p.qq1:g} \times {L_m:g}^2"
+           rf" = {0.5 * p.qq1 * L_m**2:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
     b.p("**(c) 翻边自重**——按 RTF 简化算法拆为端部集中力 + 均布线荷载（保守叠加）：")
-    b.formula(r"M_{k1}^{(c)} = Q_3 L + \dfrac{1}{2} Q_3 L^2")
-    b.subs(rf"M_{{k1}}^{{(c)}} = {Q3:.2f} \times {L_m:g} + \dfrac{{1}}{{2}} \times {Q3:.2f} \times {L_m:g}^2"
-           rf" = {Q3 * L_m + 0.5 * Q3 * L_m**2:.3f}\ \mathrm{{kN \cdot m/m}}")
-    b.formula(r"M_{k1} = M_{k1}^{(a)} + M_{k1}^{(b)} + M_{k1}^{(c)}")
-    b.subs(rf"M_{{k1}} = {Mk1:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_{k1}^{(c)}",
+        r"Q_3 L + \dfrac{1}{2} Q_3 L^2",
+        rf"{Q3:.2f} \times {L_m:g} + \dfrac{{1}}{{2}} \times {Q3:.2f} \times {L_m:g}^2"
+           rf" = {Q3 * L_m + 0.5 * Q3 * L_m**2:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
+    b.derive(
+        r"M_{k1}",
+        r"M_{k1}^{(a)} + M_{k1}^{(b)} + M_{k1}^{(c)} = "
+        rf"{Mk1:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
 
     b.h3("3. 活载下弯矩标准值")
-    b.formula(r"M_{kt1} = \dfrac{1}{2} q_{q2} L^2")
-    b.subs(rf"M_{{kt1}} = \dfrac{{1}}{{2}} \times {p.qq2:g} \times {L_m:g}^2"
-           rf" = {Mkt1:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_{kt1}",
+        r"\dfrac{1}{2} q_{q2} L^2",
+        rf"\dfrac{{1}}{{2}} \times {p.qq2:g} \times {L_m:g}^2"
+           rf" = {Mkt1:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
     b.p("检修集中荷载（F 作用于板端最不利位置，弯矩 = F·L）：")
-    b.formula(r"M_{kt2} = F L")
-    b.subs(rf"M_{{kt2}} = {p.F:g} \times {L_m:g} = {Mkt2:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_{kt2}",
+        r"F L = "
+        rf"{p.F:g} \times {L_m:g} = {Mkt2:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
     b.p("取活载 / 检修弯矩大值作为 Mk2：")
-    b.formula(r"M_{k2} = \max\{M_{kt1},\ M_{kt2}\}")
-    b.subs(rf"M_{{k2}} = \max\{{{Mkt1:.3f},\ {Mkt2:.3f}\}} = {Mk2:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_{k2}",
+        r"\max\{M_{kt1},\ M_{kt2}\}",
+        rf"\max\{{{Mkt1:.3f},\ {Mkt2:.3f}\}} = {Mk2:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
 
     b.h3("4. 弯矩组合")
-    b.formula(r"M_k = M_{k1} + M_{k2} \qquad (\text{标准值组合，用于裂缝验算})")
-    b.subs(rf"M_k = {Mk1:.3f} + {Mk2:.3f} = {Mk:.3f}\ \mathrm{{kN \cdot m/m}}")
-    b.formula(r"M = \gamma_G M_{k1} + \gamma_Q M_{k2} \qquad (\text{基本组合，用于配筋})")
-    b.subs(rf"M = {p.gamma_g:g} \times {Mk1:.3f} + {p.gamma_q:g} \times {Mk2:.3f}"
-           rf" = {M:.3f}\ \mathrm{{kN \cdot m/m}}")
+    b.derive(
+        r"M_k",
+        r"M_{k1} + M_{k2} \qquad (\text{标准值组合，用于裂缝验算})",
+        rf"{Mk1:.3f} + {Mk2:.3f} = {Mk:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
+    b.derive(
+        r"M",
+        r"\gamma_G M_{k1} + \gamma_Q M_{k2} \qquad (\text{基本组合，用于配筋})",
+        rf"{p.gamma_g:g} \times {Mk1:.3f} + {p.gamma_q:g} \times {Mk2:.3f}"
+           rf" = {M:.3f}\ \mathrm{{kN \cdot m/m}}",
+    )
 
     # 四、配筋计算
     b.h2("四、配筋计算")
     b.p("按单筋矩形截面计算，截面有效高度（按钢筋单层布置假定）：")
-    b.formula(r"h_0 = h_1 - c - 5")
-    b.subs(rf"h_0 = {p.h1:g} - {p.cover:g} - 5 = {h0:g}\ \mathrm{{mm}}")
+    b.derive(
+        r"h_0",
+        r"h_1 - c - 5 = "
+        rf"{p.h1:g} - {p.cover:g} - 5 = {h0:g}\ \mathrm{{mm}}",
+    )
 
     b.h3("1. 界限相对受压区高度 ξb")
-    b.formula(
-        r"\xi_b = \dfrac{\beta_1}{1 + \dfrac{f_y}{\varepsilon_{cu} E_s}}",
+    b.derive(
+        r"\xi_b",
+        r"\dfrac{\beta_1}{1 + \dfrac{f_y}{\varepsilon_{cu} E_s}}",
+        rf"\dfrac{{{beta1:g}}}{{1 + \dfrac{{{fy:g}}}{{{epsilon_cu:g} \times {Es:.0f}}}}} = {xi_b:.3f}",
         cite=("GB 50010-2010", "6.2.7-1"),
     )
-    b.subs(rf"\xi_b = \dfrac{{{beta1:g}}}{{1 + \dfrac{{{fy:g}}}{{{epsilon_cu:g} \times {Es:.0f}}}}} = {xi_b:.3f}")
 
     b.h3("2. 最小 / 最大配筋率")
     b.p("受弯构件最小配筋率取 0.20% 与 45·ft/fy 的较大值（GB 50010-2010 §8.5.1）；"
@@ -362,12 +400,13 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
     _rmin_right = r"\right\}"
     b.subs(rf"\rho_{{\min}} = {_rmin_left}0.20\%,\ \dfrac{{45 \times {ft:g}}}{{{fy:g}}}{_rmin_right}"
            rf" = {rho_min:.3f}\%")
-    b.formula(
-        r"\rho_{\max} = \dfrac{\xi_b \alpha_1 f_c}{f_y}",
+    b.derive(
+        r"\rho_{\max}",
+        r"\dfrac{\xi_b \alpha_1 f_c}{f_y}",
+        rf"\dfrac{{{xi_b:.3f} \times {alpha1:g} \times {fc:g}}}{{{fy:g}}}"
+           rf" = {rho_max:.3f}\%",
         cite=("GB 50010-2010", "6.2.7-1"),
     )
-    b.subs(rf"\rho_{{\max}} = \dfrac{{{xi_b:.3f} \times {alpha1:g} \times {fc:g}}}{{{fy:g}}}"
-           rf" = {rho_max:.3f}\%")
     b.check("配筋率上界", value=rho_min, limit=rho_max, unit="%",
             op="le", expr=r"\rho_{\min} \le \rho_{\max}",
             cite=("GB 50010-2010", "6.2.7-1"))
@@ -375,28 +414,39 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
         f"{rho_min:.3f}\\% \\times 1000 \\times {p.h1:g} = {as_min:.1f}\\ \\mathrm{{mm^2}}$。")
 
     b.h3("3. 受弯承载力计算")
-    b.formula(
-        r"\alpha_s = \dfrac{M}{\alpha_1 f_c b h_0^2}",
+    b.derive(
+        r"\alpha_s",
+        r"\dfrac{M}{\alpha_1 f_c b h_0^2}",
+        rf"\dfrac{{{M * 1e6:.0f}}}{{{alpha1:g} \times {fc:g} \times 1000 \times {h0:g}^2}}"
+           rf" = {alpha_s:.4f}",
         cite=("GB 50010-2010", "6.2.10-1"),
     )
-    b.subs(rf"\alpha_s = \dfrac{{{M * 1e6:.0f}}}{{{alpha1:g} \times {fc:g} \times 1000 \times {h0:g}^2}}"
-           rf" = {alpha_s:.4f}")
-    b.formula(r"\xi = 1 - \sqrt{1 - 2 \alpha_s}")
-    b.subs(rf"\xi = 1 - \sqrt{{1 - 2 \times {alpha_s:.4f}}} = {xi:.4f}")
+    b.derive(
+        r"\xi",
+        r"1 - \sqrt{1 - 2 \alpha_s} = "
+        rf"1 - \sqrt{{1 - 2 \times {alpha_s:.4f}}} = {xi:.4f}",
+    )
     b.check("相对受压区高度", value=xi, limit=xi_b,
             expr=r"\xi \le \xi_b",
             cite=("GB 50010-2010", "6.2.10-4"))
-    b.formula(r"\gamma_s = 1 - 0.5 \xi")
-    b.subs(rf"\gamma_s = 1 - 0.5 \times {xi:.4f} = {gamma_s:.4f}")
-    b.formula(
-        r"A_s = \dfrac{M}{f_y \gamma_s h_0}",
+    b.derive(
+        r"\gamma_s",
+        r"1 - 0.5 \xi = "
+        rf"1 - 0.5 \times {xi:.4f} = {gamma_s:.4f}",
+    )
+    b.derive(
+        r"A_s",
+        r"\dfrac{M}{f_y \gamma_s h_0}",
+        rf"\dfrac{{{M * 1e6:.0f}}}{{{fy:g} \times {gamma_s:.4f} \times {h0:g}}}"
+           rf" = {as_calc:.1f}\ \mathrm{{mm^2}}",
         cite=("GB 50010-2010", "6.2.10-2"),
     )
-    b.subs(rf"A_s = \dfrac{{{M * 1e6:.0f}}}{{{fy:g} \times {gamma_s:.4f} \times {h0:g}}}"
-           rf" = {as_calc:.1f}\ \mathrm{{mm^2}}")
     b.p("按最小配筋率控制取大：")
-    b.formula(r"A_{s,\mathrm{des}} = \max\{A_s,\ A_{s,\min}\}")
-    b.subs(rf"A_{{s,\mathrm{{des}}}} = \max\{{{as_calc:.1f},\ {as_min:.1f}\}} = {as_des:.1f}\ \mathrm{{mm^2}}")
+    b.derive(
+        r"A_{s,\mathrm{des}}",
+        r"\max\{A_s,\ A_{s,\min}\}",
+        rf"\max\{{{as_calc:.1f},\ {as_min:.1f}\}} = {as_des:.1f}\ \mathrm{{mm^2}}",
+    )
     b.p(f"查选筋表取严格大于 $A_{{s,\\mathrm{{des}}}}$ 的最小档："
         f"$\\Phi{dia_pick}@{sp_pick}$，实配面积 $A_{{s,\\text{{实}}}} = {as_pick:.1f}\\ \\mathrm{{mm^2}}$。")
     b.check("最小配筋控制", value=as_pick, limit=as_min,
@@ -413,16 +463,20 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
         f"$A_{{s,\\text{{实}}}} = 1000 \\times \\pi d^2 / (4s) = "
         f"{as_prov:.1f}\\ \\mathrm{{mm^2}}$，等效直径 $d_{{eq}} = d = {deq:g}\\ \\mathrm{{mm}}$。")
     b.p("截面有效高度（按实配钢筋直径）：")
-    b.formula(r"h_{0,c} = h_1 - c - d/2")
-    b.subs(rf"h_{{0,c}} = {p.h1:g} - {p.cover:g} - {p.dia:g}/2 = {h0c:g}\ \mathrm{{mm}}")
+    b.derive(
+        r"h_{0,c}",
+        r"h_1 - c - d/2 = "
+        rf"{p.h1:g} - {p.cover:g} - {p.dia:g}/2 = {h0c:g}\ \mathrm{{mm}}",
+    )
 
     b.h3("1. 钢筋等效应力 σs")
-    b.formula(
-        r"\sigma_s = \dfrac{M_k}{0.87\, h_{0,c}\, A_{s,\text{实}}}",
+    b.derive(
+        r"\sigma_s",
+        r"\dfrac{M_k}{0.87\, h_{0,c}\, A_{s,\text{实}}}",
+        rf"\dfrac{{{Mk * 1e6:.0f}}}{{0.87 \times {h0c:g} \times {as_prov:.1f}}}"
+           rf" = {sigma_s:.2f}\ \mathrm{{N/mm^2}}",
         cite=("GB 50010-2010", "7.1.4-2"),
     )
-    b.subs(rf"\sigma_s = \dfrac{{{Mk * 1e6:.0f}}}{{0.87 \times {h0c:g} \times {as_prov:.1f}}}"
-           rf" = {sigma_s:.2f}\ \mathrm{{N/mm^2}}")
 
     b.h3("2. 受拉钢筋应变不均匀系数 ψ")
     b.p("有效受拉混凝土截面面积 $A_{{te}} = 0.5 b h = 0.5 \\times 1000 \\times "
@@ -432,12 +486,13 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
     _rte_left = r"\max\left\{"
     _rte_right = r"\right\}"
     b.subs(rf"\rho_{{te}} = {_rte_left}\dfrac{{{as_prov:.1f}}}{{{Ate:.0f}}},\ 0.01{_rte_right} = {rte:.4f}")
-    b.formula(
-        r"\psi = 1.1 - \dfrac{0.65\, f_{tk}}{\rho_{te}\, \sigma_s}",
+    b.derive(
+        r"\psi",
+        r"1.1 - \dfrac{0.65\, f_{tk}}{\rho_{te}\, \sigma_s}",
+        rf"1.1 - \dfrac{{0.65 \times {ftk:g}}}{{{rte:.4f} \times {sigma_s:.2f}}}"
+           rf" = {1.1 - 0.65 * ftk / (rte * sigma_s):.4f}",
         cite=("GB 50010-2010", "7.1.2-4"),
     )
-    b.subs(rf"\psi = 1.1 - \dfrac{{0.65 \times {ftk:g}}}{{{rte:.4f} \times {sigma_s:.2f}}}"
-           rf" = {1.1 - 0.65 * ftk / (rte * sigma_s):.4f}")
     b.p("$\\psi$ 应在 $[0.2, 1.0]$ 区间内（GB 50010-2010 §7.1.2 第 4 款），"
         f"此处取 $\\psi = {psi:.3f}$。")
 
@@ -447,15 +502,19 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
         f"构件受力特征系数 $\\alpha_{{cr}} = 1.9$（受弯构件）。")
     _cs_left = r"\min\{\max("
     _cs_right = r"),\ 65\}"
-    b.formula(r"c_s = \min\{\max(c, 20), 65\}")
-    b.subs(rf"c_s = {_cs_left}{p.cover:g}, 20{_cs_right} = {cs:g}\ \mathrm{{mm}}")
-    b.formula(
-        r"\omega_{\max} = \alpha_{cr}\, \psi\, \dfrac{\sigma_s}{E_s}\left( 1.9\, c_s + 0.08\, \dfrac{d_{eq}}{\rho_{te}} \right)",
+    b.derive(
+        r"c_s",
+        r"\min\{\max(c, 20), 65\} = "
+        rf"{_cs_left}{p.cover:g}, 20{_cs_right} = {cs:g}\ \mathrm{{mm}}",
+    )
+    b.derive(
+        r"\omega_{\max}",
+        r"\alpha_{cr}\, \psi\, \dfrac{\sigma_s}{E_s}\left( 1.9\, c_s + 0.08\, \dfrac{d_{eq}}{\rho_{te}} \right)",
+        rf"{alpha_cr:g} \times {psi:.3f} \times \dfrac{{{sigma_s:.2f}}}{{{Es:.0f}}}"
+           rf" \times \left(1.9 \times {cs:g} + 0.08 \times \dfrac{{{deq:g}}}{{{rte:.4f}}}\right)"
+           rf" = {w_max:.3f}\ \mathrm{{mm}}",
         cite=("GB 50010-2010", "7.1.2-1"),
     )
-    b.subs(rf"\omega_{{\max}} = {alpha_cr:g} \times {psi:.3f} \times \dfrac{{{sigma_s:.2f}}}{{{Es:.0f}}}"
-           rf" \times \left(1.9 \times {cs:g} + 0.08 \times \dfrac{{{deq:g}}}{{{rte:.4f}}}\right)"
-           rf" = {w_max:.3f}\ \mathrm{{mm}}")
     b.check("最大裂缝宽度", value=w_max, limit=w_lim, unit="mm",
             expr=r"\omega_{\max} \le [\omega]=0.20",
             cite=("GB 50010-2010", "7.1.2-1"))

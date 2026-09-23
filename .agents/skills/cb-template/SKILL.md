@@ -146,8 +146,9 @@ python assets/example-steel-beam.py
 - **f-string + LaTeX**：用 `rf""`，LaTeX 的 `{}` 转义为 `{{}}`；公式内**不放千分位逗号**（被当间距）
 - **数字格式**：`:g` 避免 `100000000.0`；`:.1f` 给应力；`{{:,}}` 仅用于表格/文字
 - **必写项**：`return b`、每个模板至少一个 `check`（否则 `b.max_ratio` 为 `None`、批量视图无比值列）
-- **顺序**：代入过程用 `derive()` 推导链（等式串，推荐）；`formula + subs`
-  旧写法仍支持；`check` 紧跟推导之后（界面预览按此节奏）
+- **顺序**：代入过程用 `derive()` 推导链——**分段即换行，布局规则见
+  api.md「推导链排版规则」**（三种布局、100 字符判据、说明放行尾）；
+  `formula + subs` 旧写法仍支持；`check` 紧跟推导之后（界面预览按此节奏）
 - **字符串字面量**：不要用 `str.format`（CSS 花括号会冲突；导出模板的工程文件也走 `str.replace`）
 - **第三方依赖**：用了 matplotlib 等不在 calcbook 基础依赖里的库 → 文件顶部声明
   `__calcbook_requires__ = ["matplotlib"]`（import 名列表；缺库时界面给「缺少依赖 +

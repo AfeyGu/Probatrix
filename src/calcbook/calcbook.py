@@ -32,10 +32,6 @@ __all__ = ["CalcBook"]
 #: 默认数值格式（比值等），足够展示且不堆小数
 _DEFAULT_DIGITS = 4
 
-#: 推导链分行规律的源字符阈值：全串 ≤ 此值单行连排，超过逐段 aligned 分行
-#: （按版心渲染宽度校准的经验值；作者可用 derive(..., one_line=True/False) 覆盖）
-_ONE_LINE_CHARS = 120
-
 
 @dataclass
 class _Item:
@@ -102,11 +98,10 @@ class CalcBook:
         return self
 
     def derive(self, left: str, *steps: str,
-               cite: tuple[str, str] | None = None,
-               one_line: bool | None = None) -> "CalcBook":
-        """推导链（代入过程的**推荐写法**）：一个等式串下来。
+               cite: tuple[str, str] | None = None) -> "CalcBook":
+        """推导链（代入过程的**推荐写法**）：一段一行，等号对齐连排。
 
-        首行「left = 段1」，其后逐段「= 段2」「= 段3」……段间自动补 =：
+        **换行由分段决定**——给几段就排几行，段间自动补 =：
 
             b.derive(r"\\sigma",
                      r"\\dfrac{M_x}{\\gamma_x W_x} \\le f",
@@ -114,19 +109,21 @@ class CalcBook:
                      rf"{sigma:.1f}\\ \\mathrm{{N/mm^2}}",
                      cite=("GB 50017-2017", "4.1.1"))
 
-        分行规律（自动）：全串源字符总长 ≤120（约版心渲染宽）时**单行连排**，
-        超过则逐段 aligned 分行；one_line=True/False 可强制覆盖——
-        想要手稿式逐行推导（式子短也分行）就 one_line=False。
-        formula()+subs() 旧写法仍支持，且相邻时渲染自动按同一规律合并。
+        渲染效果::
+
+            σ = Mx / (γx·Wnx) ≤ f
+              = 95.2×10⁶ / (γx·Wnx)
+              = 152.3 N/mm²
+
+        想一行连排就只给一段（段内自己用 = 连）；想逐行推导就逐段给。
+        说明性括号（如 (底面抹灰)）写在**最后一段**的行尾。
+        formula()+subs() 旧写法仍支持（渲染为两个独立公式块）。
         """
         if not steps:
             raise ValueError("derive 至少需要一个推导段")
-        if one_line is None:
-            one_line = len(left) + sum(len(s) for s in steps) <= _ONE_LINE_CHARS
-        if one_line:
-            text = f"{left} = " + " = ".join(steps)
-        else:
-            text = _aligned_body(left, [("", s) for s in steps])
+        rows = [rf"{left} &= {steps[0]}"] + [f"&= {s}" for s in steps[1:]]
+        text = (r"\begin{aligned}" + "\n"
+                + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
         self._items.append(_Item(kind="formula", text=text, cite=cite))
         return self
 
@@ -230,15 +227,7 @@ class CalcBook:
         if self.title:
             lines += [f"# {self.title}", ""]
 
-        for grp in _formula_groups(self._items):
-            if grp[0] == "chain":
-                _, text, cite = grp
-                lines += [f"$${text}$$"]
-                if cite:
-                    lines += [f"> 依据：{cite[0]} 第 {cite[1]} 条", ""]
-                lines += [""]
-                continue
-            it = grp[1]
+        for it in self._items:
             if it.kind == "h1":
                 lines += [f"# {it.text}", ""]
             elif it.kind == "h2":
@@ -271,14 +260,7 @@ class CalcBook:
         out: list[str] = []
         if self.title:
             out.append(f"<h1>{_inline(self.title)}</h1>")
-        for grp in _formula_groups(self._items):
-            if grp[0] == "chain":
-                _, text, cite = grp
-                out.append(f"<p class='formula'>{_esc(f'$${text}$$')}</p>")
-                if cite:
-                    out.append(f"<blockquote>{_inline(f'依据：{cite[0]} 第 {cite[1]} 条')}</blockquote>")
-                continue
-            it = grp[1]
+        for it in self._items:
             k = it.kind
             if k in ("h1", "h2", "h3"):
                 out.append(f"<{k}>{_inline(it.text)}</{k}>")
@@ -387,74 +369,10 @@ def _table_html(header: list[str], rows: list[list[Any]]) -> list[str]:
 
 
 # ----------------------------------------------------------------------
-# 推导链：formula 与其后紧邻的 subs 合并为一条 aligned 等式串
-# （derive() 产物已自带 aligned，标记跳过；旧写法在此免费升级显示形态）
+# 推导链：formula 与其后同左符号的连续 subs 合并为一条等式串；
+# 左符号不同的 subs 断链（不同公式各自成行）。derive() 产物已成型，
+# 含 aligned 标记的跳过；旧写法在此免费升级显示形态。
 # ----------------------------------------------------------------------
-def _depth0_split(text: str) -> list[str]:
-    """按花括号深度 0 的 '=' 切分 LaTeX 表达式（顶层关系符才切）。"""
-    parts: list[str] = []
-    depth = 0
-    cur: list[str] = []
-    for ch in text:
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-        if ch == "=" and depth == 0:
-            parts.append("".join(cur))
-            cur = []
-        else:
-            cur.append(ch)
-    parts.append("".join(cur))
-    return parts
-
-
-def _formula_groups(items: list[_Item]):
-    """遍历 items，把 formula+连续 subs 分组。
-
-    yield ("chain", head_left, [(left_override, seg)...], cite)
-      或 ("formula", item)（不参与合并的，含 derive 已 aligned 的）。
-    """
-    i, n = 0, len(items)
-    while i < n:
-        it = items[i]
-        if it.kind != "formula" or "aligned" in it.text:
-            yield ("formula", it)
-            i += 1
-            continue
-        subs: list[_Item] = []
-        j = i + 1
-        while j < n and items[j].kind == "subs":
-            subs.append(items[j])
-            j += 1
-        parts = _depth0_split(it.text)
-        if len(parts) < 2 or not subs:
-            yield ("formula", it)
-            i += 1
-            continue
-        head = parts[0].strip()
-        segs = [("", "=".join(parts[1:]))]
-        for s in subs:
-            sp = _depth0_split(s.text)
-            sl = sp[0].strip()
-            for idx, seg in enumerate(sp[1:]):
-                segs.append((sl if (idx == 0 and sl != head) else "", seg))
-        one_line = len(head) + sum(len(s) for _, s in segs) <= _ONE_LINE_CHARS
-        if one_line:
-            text = f"{head} = " + " = ".join(s.strip() for _, s in segs)
-        else:
-            text = _aligned_body(head, segs)
-        yield ("chain", text, it.cite)
-        i = j
-
-
-def _aligned_body(head: str, segs: list[tuple[str, str]]) -> str:
-    rows = [f"{head} &= {segs[0][1].strip()}"]
-    rows += [f"{lo} &= {s.strip()}" if lo else f"&= {s.strip()}" for lo, s in segs[1:]]
-    return (r"\begin{aligned}" + "\n"
-            + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
-
-
 def _fmt(v: float | None) -> str:
     if v is None:
         return "—"

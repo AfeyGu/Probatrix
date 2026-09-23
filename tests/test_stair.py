@@ -75,7 +75,7 @@ def test_2at1_row_matches_workbook(meta):
     r = _run(meta, name="2AT1", a=280, d=150, n=22, support="两端弹性")
     checks = {c["name"]: c for c in r.checks}
     # l0 = min(6.16+0.2, 6.468) = 6.36
-    assert r"&= 6.36" in r.md            # 推导链行（aligned）
+    assert "= 6.36" in r.md              # 推导链行2（= 代入 = 值）
     # 跨中 As=1122 → 12@100=1131；A端 As=681→12@150
     assert r"\Phi12@150" in r.md
     assert r"\Phi12@100" in r.md
@@ -96,7 +96,7 @@ def test_1ata1_row_hinged(meta):
     r = _run(meta, name="1ATa1", support="下铰上弹",
              a=260, d=166.66, n=16)
     checks = {c["name"]: c for c in r.checks}
-    assert r"&= 170\ \mathrm{mm}" in r.md                      # ceil(4160/25/10)×10 = 170
+    assert r"= 170\ \mathrm{mm}" in r.md                      # ceil(4160/25/10)×10 = 170
     assert r"\Phi10@200" in r.md                       # A端 ρmin=340 控制 → 10@200
     assert "该截面弯矩为 0" in r.md                # A端铰支
     assert checks["A端支座裂缝宽度"]["value"] == pytest.approx(0.0, abs=1e-12)
