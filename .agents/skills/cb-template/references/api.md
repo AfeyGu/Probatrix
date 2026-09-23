@@ -29,7 +29,7 @@ __calcbook_requires__ = ["matplotlib"]   # import 名列表
 | 你写 | CalcBook 自动做 |
 |---|---|
 | **参数声明**（Pydantic + `Field`） | 生成参数表单、批量表格的列、工程文件的参数 JSON |
-| **计算 + `CalcBook` 写书** | KaTeX 实时预览、批量重算、应力比列、HTML 导出 |
+| **计算 + `CalcBook` 写书** | KaTeX 实时预览、批量重算、比值列、HTML 导出 |
 
 不写一行界面代码，不碰 HTML，不排版。
 
@@ -124,6 +124,7 @@ Field(默认值,
 |---|---|---|
 | `h1/h2/h3(text)` | 标题（编号自己写，如 `"1. 强度验算"`） | `# / ## / ###` |
 | `p(text)` | 文字段落，支持行内 `$…$` | 段落 |
+| `derive(left, *steps, cite=None)` | **推导链**（代入过程推荐写法） | 等式串：首行 `left = 段1`，其后 `= 段2`… 对齐连排 |
 | `formula(latex, cite=None)` | **符号公式**（独立公式块） | `$$…$$` + 依据标注行 |
 | `subs(latex, cite=None)` | **代入数值**（跟在 formula 后） | 独立公式块 |
 | `check(…)` | 验算项（见 §4） | 判定行 + 自动汇总表 |
@@ -137,10 +138,14 @@ Field(默认值,
 **书写惯例**（结构计算书的标准姿势，界面预览按此渲染）：
 
 ```python
-b.formula(r"\sigma = \dfrac{M_x}{\gamma_x W_x} \le f")   # ① 符号公式
-b.subs(rf"\sigma = \dfrac{{{v}}}{{…}} = {sigma:.1f}\ \mathrm{{N/mm^2}}")  # ② 代入
+b.derive(r"\sigma",                                       # ①+② 推导链（推荐）
+         r"\dfrac{M_x}{\gamma_x W_x} \le f",
+         rf"\dfrac{{{v}}}{{…}}",
+         rf"{sigma:.1f}\ \mathrm{{N/mm^2}}")
 b.check("抗弯强度", value=sigma, limit=p.fy, …)           # ③ 判定
 ```
+
+推导链渲染为等式串（`aligned` 对齐）；旧写法 `formula()` + `subs()` 仍完全支持。
 
 计算深度不设限：想写多细写多细（`p()` 补文字说明、`table()` 列中间量），但每个模板自己保持风格一致。
 
@@ -149,7 +154,7 @@ b.check("抗弯强度", value=sigma, limit=p.fy, …)           # ③ 判定
 | 属性 | 类型 | 含义 |
 |---|---|---|
 | `b.checks` | `list[dict]` | 所有 check 项（调试用） |
-| `b.max_ratio` | `float \| None` | 最大应力比（无 check 时为 `None`） |
+| `b.max_ratio` | `float \| None` | 最大比值（无 check 时为 `None`） |
 | `b.all_ok` | `bool` | 所有 check 是否满足（无 check 时为 `False`） |
 
 ## 4. `check` 与结论
@@ -161,14 +166,14 @@ b.check(name="抗弯强度",
         expr=r"\sigma \le f",           # 可选：符号表达式，显示在判定行
         unit="N/mm²",                   # 展示单位
         cite=("GB 50017-2017", "4.1.1"),
-        ratio=None)                     # 应力比；缺省 le→value/limit、ge→limit/value
+        ratio=None)                     # 比值；缺省 le→value/limit、ge→limit/value
 ```
 
 `check()` 自动完成三件事：
 
-1. **正文判定行**：`抗弯强度：σ≤f：95.24 ≤ 215 N/mm²，应力比 0.443 —— **满足**`（不满足加粗）；
-2. **计算书末尾自动汇总「验算结论」表**（验算项/数值/应力比/结论；有 `cite` 时才附「依据」列）；
-3. **批量表格每行显示最大应力比**（`max_ratio`，超限红色）——这是使用者筛选危险构件的依据，所以**每个模板都应至少有一个 check**。
+1. **正文判定行**：`抗弯强度：σ≤f：95.24 ≤ 215 N/mm²，比值 0.443 —— **满足**`（不满足加粗）；
+2. **计算书末尾自动汇总「验算结论」表**（验算项/数值/比值/结论；有 `cite` 时才附「依据」列）；
+3. **批量表格每行显示最大比值**（`max_ratio`，超限红色）——这是使用者筛选危险构件的依据，所以**每个模板都应至少有一个 check**。
 
 代码里也可读：`b.checks`、`b.max_ratio`、`b.all_ok`。
 
@@ -310,6 +315,6 @@ metric(name: str, value)                         # 批量附加指标列（不�
 
 # ---------- 属性 ----------
 b.checks: list[dict]                             # 所有 check 项
-b.max_ratio: float | None                        # 最大应力比
+b.max_ratio: float | None                        # 最大比值
 b.all_ok: bool                                   # 全部满足？
 ```

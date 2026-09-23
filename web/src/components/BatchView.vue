@@ -1,5 +1,5 @@
 <script setup>
-/** 批量视图：一行一个构件；列显隐、统一设置、Excel 粘贴、行内应力比/结论。 */
+/** 批量视图：一行一个构件；列显隐、统一设置、Excel 粘贴、行内比值/结论。 */
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { store, itemsOf, visibleParams, hiddenCols, toggleCol, scheduleRun,
@@ -204,7 +204,7 @@ async function onExportRowMd(row) {
         </template>
       </el-table-column>
 
-      <el-table-column label="应力比" width="90">
+      <el-table-column label="比值" width="90">
         <template #default="{ row }">
           <span v-if="store.runningIds.has(row.id)">…</span>
           <b v-else-if="ratioText(store.results[row.id]) != null"

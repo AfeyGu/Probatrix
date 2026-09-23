@@ -53,7 +53,34 @@ def test_formula_block_and_cite() -> None:
 def test_check_verdict_line() -> None:
     h = book_all_kinds().to_html()
     assert "<p class='item'>• <b>抗弯强度</b>：$\\sigma$：150.2 ≤ 215 N/mm²，" \
-           "应力比 0.6986 —— <b>满足</b></p>" in h
+           "比值 0.6986 —— <b>满足</b></p>" in h
+
+
+# ---------------------------------------------------------------- 推导链（derive）
+def test_derive_chain_aligned() -> None:
+    b = CalcBook()
+    b.derive(r"\sigma",
+             r"\dfrac{M_x}{\gamma_x W_x} \le f",
+             r"\dfrac{95.2\times10^6}{1.05 \times W_x}",
+             r"152.3\ \mathrm{N/mm^2}",
+             cite=("GB 50017-2017", "4.1.1"))
+    h = b.to_html(with_summary=False)
+    assert "<p class='formula'>$$\\begin{aligned}" in h
+    assert "\\sigma &amp;=" in h                    # 首行：左符号 = 段1（& 转义）
+    assert "&amp;= \\dfrac{95.2" in h               # 后续行：= 段2（等号对齐）
+    assert "&amp;= 152.3" in h
+    assert "\\end{aligned}$$" in h
+    assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in h
+
+
+def test_derive_single_step() -> None:
+    h = CalcBook().derive(r"\sigma", r"\dfrac{M}{W}").to_html(with_summary=False)
+    assert "\\begin{aligned}" in h and "\\sigma &amp;= \\dfrac{M}{W}" in h
+
+
+def test_derive_requires_steps() -> None:
+    with pytest.raises(ValueError):
+        CalcBook().derive(r"\sigma")
 
 
 # ---------------------------------------------------------------- 表格与汇总
@@ -65,7 +92,7 @@ def test_table_structure() -> None:
 
 def test_summary_table_appended() -> None:
     h = book_all_kinds().to_html()
-    assert "<th>验算项</th><th>数值</th><th>应力比</th><th>结论</th><th>依据</th>" in h
+    assert "<th>验算项</th><th>数值</th><th>比值</th><th>结论</th><th>依据</th>" in h
     assert h.rstrip().endswith("</table>")
     assert "<table>" not in CalcBook(title="无验算").to_html(with_summary=False)
 

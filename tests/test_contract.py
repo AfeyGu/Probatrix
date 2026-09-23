@@ -94,11 +94,11 @@ def test_check_pass_and_fail() -> None:
     md = b.to_markdown()
     assert "**满足**" in md
     assert "**不满足**" in md
-    # 应力比：150.2/215=0.6986→0.6986，230/215=1.0698
-    assert "应力比 0.6986" in md
-    assert "应力比 1.07" in md or "应力比 1.0698" in md
+    # 比值：150.2/215=0.6986→0.6986，230/215=1.0698
+    assert "比值 0.6986" in md
+    assert "比值 1.07" in md or "比值 1.0698" in md
     # 末尾自动汇总表
-    assert "验算项" in md and "应力比" in md and "结论" in md
+    assert "验算项" in md and "比值" in md and "结论" in md
     assert b.max_ratio == pytest.approx(230 / 215)
     assert b.all_ok is False
 
@@ -152,7 +152,7 @@ def test_example_gl_end_to_end() -> None:
     book = meta.run(meta.make_params({}))
     md = book.to_markdown()
     assert "# 钢梁强度验算" in md
-    assert "应力比 0.443" in md           # 100e6/(1.05*1e6)/215 ≈ 0.443
+    assert "比值 0.443" in md           # 100e6/(1.05*1e6)/215 ≈ 0.443
     assert "**满足**" in md
     assert book.all_ok is True
     assert "| 验算项" in md               # 自动结论汇总表

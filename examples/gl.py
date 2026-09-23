@@ -50,14 +50,12 @@ def calc(p: GLParams) -> CalcBook:
     )
 
     b.h2("2. 强度验算")
-    b.formula(
-        r"\sigma = \dfrac{M_x}{\gamma_x W_x} \le f",
+    b.derive(
+        r"\sigma",
+        r"\dfrac{M_x}{\gamma_x W_x} \le f",
+        rf"\dfrac{{{p.Mx:g} \times 10^6}}{{{p.gamma_x:.2f} \times {p.Wx:,.0f}}}",
+        rf"{sigma:.1f}\ \mathrm{{N/mm^2}}",
         cite=("GB 50017-2017", "4.1.1"),
-    )
-    b.subs(
-        rf"\sigma = \dfrac{{{p.Mx:g} \times 10^6}}"
-        rf"{{{p.gamma_x:.2f} \times {p.Wx:,.0f}}}"
-        rf"= {sigma:.1f}\ \mathrm{{N/mm^2}}",
     )
     b.check(
         "抗弯强度", value=sigma, limit=p.fy, unit="N/mm²",

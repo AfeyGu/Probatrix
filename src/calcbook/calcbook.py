@@ -29,7 +29,7 @@ from typing import Any, Literal
 
 __all__ = ["CalcBook"]
 
-#: 默认数值格式（应力比等），足够展示且不堆小数
+#: 默认数值格式（比值等），足够展示且不堆小数
 _DEFAULT_DIGITS = 4
 
 
@@ -97,6 +97,34 @@ class CalcBook:
         self._items.append(_Item(kind="subs", text=latex, cite=cite))
         return self
 
+    def derive(self, left: str, *steps: str,
+               cite: tuple[str, str] | None = None) -> "CalcBook":
+        """推导链（代入过程的**推荐写法**）：一个等式串下来。
+
+        首行「left = 段1」，其后逐行「= 段2」「= 段3」……等号自动对齐；
+        段数 = 1 时即单行公式。相比 formula()+subs() 的两段独立公式块，
+        推导链展示为连贯的推导过程：
+
+            b.derive(r"\\sigma",
+                     r"\\dfrac{M_x}{\\gamma_x W_x} \\le f",
+                     rf"\\dfrac{{{p.Mx:g} \\times 10^6}}{{\\gamma_x W_x}}",
+                     rf"{sigma:.1f}\\ \\mathrm{{N/mm^2}}",
+                     cite=("GB 50017-2017", "4.1.1"))
+
+        显示效果（aligned 等式链）::
+
+            σ = Mx / (γx·Wnx) ≤ f
+              = 95.2×10⁶ / (γx·Wnx)
+              = 152.3 N/mm²
+        """
+        if not steps:
+            raise ValueError("derive 至少需要一个推导段")
+        rows = [rf"{left} &= {steps[0]}"] + [f"&= {s}" for s in steps[1:]]
+        body = (r"\begin{aligned}" + "\n"
+                + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
+        self._items.append(_Item(kind="formula", text=body, cite=cite))
+        return self
+
     # ------------------------------------------------------------------
     # 插图
     # ------------------------------------------------------------------
@@ -159,7 +187,7 @@ class CalcBook:
 
         op="le"（默认）：value ≤ limit 成立即满足（需求 ≤ 提供）；
         op="ge"：value ≥ limit 成立即满足（提供 ≥ 需求）。
-        ratio：应力比，缺省按 le=value/limit、ge=limit/value 计算。
+        ratio：比值，缺省按 le=value/limit、ge=limit/value 计算。
         """
         if ratio is None:
             ratio = value / limit if op == "le" else limit / value
@@ -277,7 +305,7 @@ class CalcBook:
         verdict = "**满足**" if it.passed else "**不满足**"
         return (
             f"**{it.name}**：{expr_part}{_fmt(it.value)} {sym} {_fmt(it.limit)}{unit}，"
-            f"应力比 {_fmt(it.ratio)} —— {verdict}"
+            f"比值 {_fmt(it.ratio)} —— {verdict}"
         )
 
     def _render_table(self, header: list[str], rows: list[list[Any]]) -> list[str]:
@@ -302,7 +330,7 @@ class CalcBook:
             if has_cite:
                 row.append(f"{c.cite[0]} {c.cite[1]}" if c.cite else "")
             rows.append(row)
-        header = ["验算项", "数值", "应力比", "结论"]
+        header = ["验算项", "数值", "比值", "结论"]
         if has_cite:
             header.append("依据")
         return header, rows
