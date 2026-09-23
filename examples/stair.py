@@ -430,8 +430,8 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
             b.derive(
                 r"A_s",
                 r"\dfrac{M}{f_y \gamma_s h_0}",
-                rf"\dfrac{{{abs(s['m']) * 1e6:.0f}}}{{{fy:g} \times {s['gamma_s']:.4f} \times {h0:g}}} = {s['as_c']:.1f}\ \mathrm{{mm^2}}" r" = "
-                rf"\max( {s['as_c']:.1f},\ {as_min:.0f} ) = {s['as_des']:.1f}\ \mathrm{{mm^2}}",
+                rf"\dfrac{{{abs(s['m']) * 1e6:.0f}}}{{{fy:g} \times {s['gamma_s']:.4f} \times {h0:g}}} = {s['as_c']:.1f}\ \mathrm{{mm^2}}",
+                take=rf"\max( {s['as_c']:.1f},\ {as_min:.0f} ) = {s['as_des']:.1f}\ \mathrm{{mm^2}}",
             )
         b.p(rf"选用 $\Phi{s['dia']}@{s['sp']}$（$A_s = {s['as_prov']:.1f}\ \mathrm{{mm^2}}$）。")
         b.check(f"{s['tag']}最小配筋", value=s["as_prov"], limit=as_min,

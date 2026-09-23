@@ -98,7 +98,8 @@ class CalcBook:
         return self
 
     def derive(self, left: str, *steps: str,
-               cite: tuple[str, str] | None = None) -> "CalcBook":
+               cite: tuple[str, str] | None = None,
+               take: str | None = None) -> "CalcBook":
         """推导链（代入过程的**推荐写法**）：一段一行，等号对齐连排。
 
         **换行由分段决定**——给几段就排几行，段间自动补 =：
@@ -117,11 +118,27 @@ class CalcBook:
 
         想一行连排就只给一段（段内自己用 = 连）；想逐行推导就逐段给。
         说明性括号（如 (底面抹灰)）写在**最后一段**的行尾。
+        take：**取值行**（可选）——计算值须落在范围内、否则取定值时，把
+        「max(计算值, 限值) = 最终值」放这里，渲染为行首带「取」字的独立行：
+
+            b.derive(r"A_s",
+                     r"\\dfrac{M}{f_y \\gamma_s h_0}",
+                     rf"\\dfrac{{1868847}}{{360 \\times 0.9889 \\times 77}} = 68.2\\ \\mathrm{{mm^2}}",
+                     take=r"\\max(68.2,\\ 200) = 200.0\\ \\mathrm{mm^2}")
+
+        渲染效果::
+
+            A_s = M / (f_y·γs·h0)
+              = 1868847 / (360×0.9889×77) = 68.2 mm²
+            取 A_s = max(68.2, 200) = 200.0 mm²
+
         formula()+subs() 旧写法仍支持（渲染为两个独立公式块）。
         """
         if not steps:
             raise ValueError("derive 至少需要一个推导段")
         rows = [rf"{left} &= {steps[0]}"] + [f"&= {s}" for s in steps[1:]]
+        if take:
+            rows.append(rf"\text{{取 }} {left} &= {take}")
         text = (r"\begin{aligned}" + "\n"
                 + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
         self._items.append(_Item(kind="formula", text=text, cite=cite))

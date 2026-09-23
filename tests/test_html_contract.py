@@ -98,6 +98,18 @@ def test_derive_requires_steps() -> None:
         CalcBook().derive(r"\sigma")
 
 
+def test_derive_take_line() -> None:
+    """取值行:行首带「取」字、等号与上行对齐。"""
+    b = CalcBook().derive(
+        r"A_s",
+        r"\dfrac{M}{f_y \gamma_s h_0}",
+        r"\dfrac{1868847}{360 \times 0.9889 \times 77} = 68.2\ \mathrm{mm^2}",
+        take=r"\max(68.2,\ 200) = 200.0\ \mathrm{mm^2}")
+    h = b.to_html(with_summary=False)
+    assert "\\begin{aligned}" in h
+    assert "\\text{取 } A_s &amp;= \\max(68.2,\\ 200) = 200.0\\ \\mathrm{mm^2}" in h
+
+
 # ---------------------------------------------------------------- 表格与汇总
 def test_table_structure() -> None:
     h = book_all_kinds().to_html()
