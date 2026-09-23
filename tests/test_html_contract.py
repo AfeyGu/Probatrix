@@ -44,10 +44,20 @@ def test_multiline_paragraph_is_lines() -> None:
 
 
 # ---------------------------------------------------------------- 公式与引用
-def test_formula_block_and_cite() -> None:
+def test_formula_subs_merge_into_chain() -> None:
+    """相邻 formula+subs 自动合并为推导链（旧写法免费升级显示形态）。"""
     h = book_all_kinds().to_html()
-    assert "<p class='formula'>$$\\sigma = \\dfrac{M_x}{\\gamma_x W_x}$$</p>" in h
+    assert "<p class='formula'>$$\\begin{aligned}" in h
+    assert "\\sigma &amp;= \\dfrac{M_x}{\\gamma_x W_x}" in h
+    assert "&amp;= 150.2" in h
     assert "<blockquote>依据：GB 50017-2017 第 4.1.1 条</blockquote>" in h
+
+
+def test_formula_without_subs_standalone() -> None:
+    """无相邻 subs 的 formula 保持独立公式块。"""
+    h = CalcBook().formula(r"\sigma = \dfrac{M}{W}").to_html(with_summary=False)
+    assert h == ("<p class='formula'>"
+                 "$$\\sigma = \\dfrac{M}{W}$$</p>")
 
 
 def test_check_verdict_line() -> None:

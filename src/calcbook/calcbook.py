@@ -225,7 +225,16 @@ class CalcBook:
         if self.title:
             lines += [f"# {self.title}", ""]
 
-        for it in self._items:
+        for grp in _formula_groups(self._items):
+            if grp[0] == "chain":
+                _, head, segs, cite = grp
+                body = _aligned_body(head, segs)
+                lines += [f"$${body}$$"]
+                if cite:
+                    lines += [f"> 依据：{cite[0]} 第 {cite[1]} 条", ""]
+                lines += [""]
+                continue
+            it = grp[1]
             if it.kind == "h1":
                 lines += [f"# {it.text}", ""]
             elif it.kind == "h2":
@@ -258,7 +267,15 @@ class CalcBook:
         out: list[str] = []
         if self.title:
             out.append(f"<h1>{_inline(self.title)}</h1>")
-        for it in self._items:
+        for grp in _formula_groups(self._items):
+            if grp[0] == "chain":
+                _, head, segs, cite = grp
+                body = _aligned_body(head, segs)
+                out.append(f"<p class='formula'>{_esc(f'$${body}$$')}</p>")
+                if cite:
+                    out.append(f"<blockquote>{_inline(f'依据：{cite[0]} 第 {cite[1]} 条')}</blockquote>")
+                continue
+            it = grp[1]
             k = it.kind
             if k in ("h1", "h2", "h3"):
                 out.append(f"<{k}>{_inline(it.text)}</{k}>")
@@ -364,6 +381,70 @@ def _table_html(header: list[str], rows: list[list[Any]]) -> list[str]:
             for row in rows]
     out.append("</table>")
     return out
+
+
+# ----------------------------------------------------------------------
+# 推导链：formula 与其后紧邻的 subs 合并为一条 aligned 等式串
+# （derive() 产物已自带 aligned，标记跳过；旧写法在此免费升级显示形态）
+# ----------------------------------------------------------------------
+def _depth0_split(text: str) -> list[str]:
+    """按花括号深度 0 的 '=' 切分 LaTeX 表达式（顶层关系符才切）。"""
+    parts: list[str] = []
+    depth = 0
+    cur: list[str] = []
+    for ch in text:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        if ch == "=" and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append("".join(cur))
+    return parts
+
+
+def _formula_groups(items: list[_Item]):
+    """遍历 items，把 formula+连续 subs 分组。
+
+    yield ("chain", head_left, [(left_override, seg)...], cite)
+      或 ("formula", item)（不参与合并的，含 derive 已 aligned 的）。
+    """
+    i, n = 0, len(items)
+    while i < n:
+        it = items[i]
+        if it.kind != "formula" or "aligned" in it.text:
+            yield ("formula", it)
+            i += 1
+            continue
+        subs: list[_Item] = []
+        j = i + 1
+        while j < n and items[j].kind == "subs":
+            subs.append(items[j])
+            j += 1
+        parts = _depth0_split(it.text)
+        if len(parts) < 2 or not subs:
+            yield ("formula", it)
+            i += 1
+            continue
+        head = parts[0].strip()
+        segs = [("", "=".join(parts[1:]))]
+        for s in subs:
+            sp = _depth0_split(s.text)
+            sl = sp[0].strip()
+            for idx, seg in enumerate(sp[1:]):
+                segs.append((sl if (idx == 0 and sl != head) else "", seg))
+        yield ("chain", head, segs, it.cite)
+        i = j
+
+
+def _aligned_body(head: str, segs: list[tuple[str, str]]) -> str:
+    rows = [f"{head} &= {segs[0][1].strip()}"]
+    rows += [f"{lo} &= {s.strip()}" if lo else f"&= {s.strip()}" for lo, s in segs[1:]]
+    return (r"\begin{aligned}" + "\n"
+            + " \\\\\n".join(rows) + "\n" + r"\end{aligned}")
 
 
 def _fmt(v: float | None) -> str:
