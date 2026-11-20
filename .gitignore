@@ -39,6 +39,7 @@ Thumbs.db
 .vscode/
 
 # Agent 运行时私有状态（仅忽略已知状态目录；skills 与 APPEND_SYSTEM 是项目级共享资源，下方例外）
+.sisyph/
 .pi/cache/
 .pi/sessions/
 .pi/state/
