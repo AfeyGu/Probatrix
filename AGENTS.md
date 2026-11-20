@@ -6,7 +6,7 @@ CalcBook——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端�
 
 ```bash
 pip install -e .                      # 可编辑安装（改后端代码即时生效）
-python -m pytest tests -q             # 全部测试（44 个：契约/后端/API + stair 模板回归）
+python -m pytest tests -q             # 全部测试（90 个：契约/后端/API + 模板回归）
 python -m pytest tests/test_server.py::test_run_batch -q   # 单个测试
 
 calcbook serve --templates examples --port 8317 --no-browser   # 起本地服务
