@@ -111,6 +111,41 @@ def test_loader_plain_data_module(tmp_path: Path) -> None:
     assert result.ok and "3000000.0" in result.md
 
 
+def test_loader_data_modules_do_not_leak_across_dirs(tmp_path: Path) -> None:
+    """A、B 两个模板目录各有同名数据模块：各自拿到自己目录的表。
+
+    曾踩坑：先扫 A 后扫 B，B 的模板 import 命中 sys.modules 里 A 的缓存，
+    静默算错数（_forget_dir_modules 当时只清当前目录）。
+    """
+    tpl = (
+        "import Hsteel\n"
+        "from pydantic import BaseModel\n"
+        "from calcbook import CalcBook, template\n"
+        "class P(BaseModel):\n"
+        "    x: float = 1\n"
+        "@template('用数据模块')\n"
+        "def calc(p: P) -> CalcBook:\n"
+        "    return CalcBook().p(str(Hsteel.WX))\n"
+    )
+    dirs = []
+    for name, wx in (("a", 1111), ("b", 2222)):
+        d = tmp_path / name
+        d.mkdir()
+        (d / "Hsteel.py").write_text(f"WX = {wx}\n", encoding="utf-8")
+        (d / "t.py").write_text(tpl, encoding="utf-8")
+        dirs.append(d)
+
+    la, lb = TemplateLoader(dirs[0]), TemplateLoader(dirs[1])
+    la.scan()
+    lb.scan()
+    assert "2222" in run_template(lb.entries["t.calc"].meta, {}).md   # B 用自己的表
+    # 再扫回 A：必须重新拿到自己的表（而不是 B 留在缓存里的）
+    la.scan()
+    assert "1111" in run_template(la.entries["t.calc"].meta, {}).md
+    assert str(dirs[0]) in sys.path                  # 当前目录在 sys.path
+    assert str(dirs[1]) not in sys.path              # 旧模板目录已移除
+
+
 # ----------------------------------------------------------------------
 # engine：计算执行与报错
 # ----------------------------------------------------------------------
@@ -161,6 +196,33 @@ def test_run_template_crash_captured(tmp_path: Path) -> None:
     assert "ZeroDivisionError" in result.error
 
 
+def test_run_template_duck_object_does_not_raise() -> None:
+    """模板返回带 to_html 但缺 checks 的鸭子对象：结果读取失败进 RunResult，不抛。
+
+    run_template 的契约是「永不抛异常」；from_book 曾在这类对象上让
+    AttributeError 逃逸、把 API 变成 500。
+    """
+    from pydantic import BaseModel
+
+    from calcbook.template import TemplateMeta
+
+    class P(BaseModel):
+        x: float = 1.0
+
+    class Duck:                       # 有渲染方法，但没有 checks/max_ratio
+        def to_html(self) -> str:
+            return ""
+
+        def to_markdown(self) -> str:
+            return ""
+
+    result = run_template(
+        TemplateMeta(name="X", func=lambda p: Duck(), params_model=P), {})
+    assert result.ok is False
+    assert result.error_title == "计算结果读取失败"
+    assert "AttributeError" in result.error
+
+
 # ----------------------------------------------------------------------
 # project：.cbproj 读写
 # ----------------------------------------------------------------------
@@ -196,6 +258,34 @@ def test_project_rejects_unknown_version(tmp_path: Path) -> None:
     path = tmp_path / "bad.cbproj"
     path.write_text('{"format_version": 99}', encoding="utf-8")
     with pytest.raises(ValueError, match="版本不支持"):
+        load_project(path)
+
+
+def test_save_project_is_atomic_no_tmp_left(tmp_path: Path) -> None:
+    """原子写落盘：成功后无 .tmp 残留，内容完整可读回。"""
+    proj = new_project("P")
+    proj.items.append(CalcItem(
+        name="GL-1", template_id="gl.calc", template_hash="", params={}))
+    path = save_project(proj, tmp_path / "x.cbproj")
+    assert path.is_file()
+    assert not (tmp_path / "x.cbproj.tmp").exists()
+    assert load_project(path).items[0].name == "GL-1"
+
+
+def test_load_project_bad_json_readable(tmp_path: Path) -> None:
+    """坏 JSON：给可读的 ValueError（API 层转 400），而不是裸 JSONDecodeError。"""
+    path = tmp_path / "bad.cbproj"
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError, match="不是有效的 JSON"):
+        load_project(path)
+
+
+def test_load_project_missing_field_readable(tmp_path: Path) -> None:
+    """计算项缺 template_id：给出第几项缺什么，而不是 KeyError。"""
+    path = tmp_path / "bad.cbproj"
+    path.write_text('{"format_version": 1, "items": [{"name": "a"}]}',
+                    encoding="utf-8")
+    with pytest.raises(ValueError, match="缺少 template_id"):
         load_project(path)
 
 

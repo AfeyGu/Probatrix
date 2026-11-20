@@ -110,6 +110,28 @@ def test_check_ge_op() -> None:
     assert b.max_ratio == pytest.approx(1.0 / 1.2)  # ge 时 ratio=limit/value
 
 
+def test_check_zero_denominator_gives_none_ratio() -> None:
+    """分母为 0 的验算不抛除零错误：比值置 None，判定照常。
+
+    验算下限为 0（如限值=0、下限=0）在结构计算里常见；check 是模板最常调用的
+    接口，不能因算术边界炸掉整个计算书。
+    """
+    b = CalcBook()
+    b.check("限值为零", value=-1, limit=0)              # le：value/limit 除零保护
+    b.check("下限为零", value=0, limit=0, op="ge")      # ge：limit/value 除零保护
+    assert b.checks[0].ratio is None and b.checks[0].passed is True
+    assert b.checks[1].ratio is None and b.checks[1].passed is True
+    assert b.max_ratio is None                          # 无有效比值时不参与 max
+    assert "比值 —" in b.to_markdown()                  # 比值列显示占位符
+
+    # ge 且分母非零仍正常算比值；显式 ratio 原样生效
+    b2 = CalcBook()
+    b2.check("下限为零", value=5, limit=0, op="ge")
+    assert b2.checks[0].ratio == 0
+    b2.check("显式", value=140, limit=140, ratio=1.0)
+    assert b2.checks[1].ratio == 1.0
+
+
 def test_image_and_table() -> None:
     b = CalcBook()
     b.image("img/section.png", caption="截面简图")

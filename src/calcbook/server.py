@@ -37,7 +37,7 @@ from pydantic import BaseModel as APIModel
 from .docstyle import DOC_CSS
 from .engine import RunResult, run_template
 from .fields import param_meta
-from .loader import TemplateLoader
+from .loader import TemplateLoader, file_hash
 from .project import Project, load_project, new_project, save_project
 
 __all__ = ["create_app", "AppContext"]
@@ -139,8 +139,11 @@ class ExportReq(APIModel):
 # ----------------------------------------------------------------------
 def create_app(template_dir: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="CalcBook API", version="0.1.0")
+    # 浏览器/webview 模式与前端同源，不需要 CORS；仅放行 vite 开发服务器（web/ 开发用）。
+    # Rust 界面若用独立 dev server，把其来源加到这里的白名单即可。
     app.add_middleware(
-        CORSMiddleware, allow_origins=["*"],
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
         allow_methods=["*"], allow_headers=["*"],
     )
     ctx = AppContext(loader=TemplateLoader(template_dir or default_template_dir()))
@@ -171,7 +174,10 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/templates/refresh")
     def refresh_templates() -> dict[str, Any]:
-        ctx.loader.scan()
+        try:
+            ctx.loader.scan()
+        except FileNotFoundError as e:      # 模板目录被删/改名：可读报错而非 500
+            raise HTTPException(400, str(e))
         return list_templates()
 
     @app.get("/api/templates/{template_id}/schema")
@@ -255,22 +261,32 @@ def create_app(template_dir: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/project/save")
     def save_proj(req: PathReq) -> dict[str, Any]:
-        path = save_project(ctx.project, req.path)
+        try:
+            path = save_project(ctx.project, req.path)
+        except OSError as e:                # 目录不存在/无权限：可读报错而非 500
+            raise HTTPException(400, f"保存工程失败：{e}")
         return {"saved": str(path)}
 
     @app.post("/api/project/load")
     def load_proj(req: PathReq) -> dict[str, Any]:
-        ctx.project = load_project(req.path)
+        try:
+            ctx.project = load_project(req.path)
+        except (ValueError, OSError) as e:  # 坏 JSON/缺字段/文件不存在
+            raise HTTPException(400, f"载入工程失败：{e}")
         return _doc()
 
     # ---- hash 校验 ----------------------------------------------------
     @app.get("/api/hash-check")
     def hash_check() -> dict[str, Any]:
-        from .loader import file_hash
         rows = []
         for it in ctx.project.items:
             entry = ctx.loader.entries.get(it.template_id)
-            current = entry.hash if entry else None
+            current = None
+            if entry is not None:
+                try:
+                    current = file_hash(entry.file)   # 以磁盘上的当前文件为准
+                except OSError:
+                    current = None                    # 模板文件被删/不可读
             rows.append({
                 "id": it.id, "template_id": it.template_id,
                 "stored": it.template_hash, "current": current,

@@ -8,6 +8,7 @@ views 按模板 id 记录批量视图的列显隐配置；依赖模块 hash 位�
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,31 +67,44 @@ def save_project(project: Project, path: str | Path) -> Path:
         ],
         "views": project.views,
     }
-    path.write_text(
-        json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8",
-    )
+    # 原子替换：先写同目录临时文件再 os.replace——中途崩溃/断电不会留下半个工程文件
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return path
 
 
 def load_project(path: str | Path) -> Project:
     path = Path(path)
-    doc = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise ValueError(f"工程文件不是有效的 JSON（{path.name}）：{e}") from e
+    if not isinstance(doc, dict):
+        raise ValueError(f"工程文件结构异常（{path.name}）：顶层应为 JSON 对象")
     version = doc.get("format_version")
     if version != FORMAT_VERSION:
         raise ValueError(f"工程文件版本不支持：{version}（当前支持 {FORMAT_VERSION}）")
+    items = []
+    for i, it in enumerate(doc.get("items") or []):
+        if not isinstance(it, dict) or not it.get("template_id"):
+            raise ValueError(
+                f"工程文件损坏：第 {i + 1} 个计算项缺少 template_id（{path.name}）")
+        items.append(CalcItem(
+            name=str(it.get("name", "")),
+            template_id=it["template_id"],
+            template_hash=it.get("template_hash", ""),
+            params=it.get("params", {}),
+            id=it.get("id") or uuid.uuid4().hex[:12],
+            deps=it.get("deps", {}),
+        ))
     return Project(
         name=doc.get("name", "未命名工程"),
-        items=[
-            CalcItem(
-                name=it["name"],
-                template_id=it["template_id"],
-                template_hash=it.get("template_hash", ""),
-                params=it.get("params", {}),
-                id=it.get("id") or uuid.uuid4().hex[:12],
-                deps=it.get("deps", {}),
-            )
-            for it in doc.get("items", [])
-        ],
+        items=items,
         views=doc.get("views", {}),
     )
 

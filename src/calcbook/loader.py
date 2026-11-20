@@ -32,6 +32,12 @@ _MOD_PREFIX = "_cbtpl_"
 
 _CHUNK = 1 << 20
 
+#: 本进程内扫描过的模板目录（跨 loader 实例共享）：清理 sys.modules 时覆盖
+#: 全部目录，防止 A 目录扫描后其数据模块（如 Hsteel）被 B 目录的模板串用。
+_SCANNED_DIRS: set[Path] = set()
+#: 由加载器插入 sys.path 的模板目录（只移除自己插入的，不动用户原有路径）
+_SYS_PATH_ADDED: list[str] = []
+
 
 def check_deps(requires: list[str]) -> list[str]:
     """返回 requires 中当前环境缺失的依赖（import 名）。"""
@@ -92,18 +98,25 @@ class TemplateLoader:
     errors: list[LoadError] = field(default_factory=list)
 
     def scan(self) -> None:
-        """全量重扫：清掉本目录已加载模块 → 逐个导入 → 收集模板。"""
+        """全量重扫：清掉已加载模块 → 逐个导入 → 收集模板。"""
         self.directory = Path(self.directory).resolve()
+        _SCANNED_DIRS.add(self.directory)
         self._forget_dir_modules()
         self.entries.clear()
         self.errors.clear()
         if not self.directory.is_dir():
             raise FileNotFoundError(f"模板目录不存在：{self.directory}")
 
-        # 模板目录入 sys.path，让 gl.py 里的 import Hsteel 正常解析
+        # 模板目录入 sys.path，让 gl.py 里的 import Hsteel 正常解析；
+        # 同时移除之前扫过的其他模板目录，避免旧目录的数据模块/同名模块串用
         dir_str = str(self.directory)
+        for old in list(_SYS_PATH_ADDED):
+            if old != dir_str and old in sys.path:
+                sys.path.remove(old)
+                _SYS_PATH_ADDED.remove(old)
         if dir_str not in sys.path:
             sys.path.insert(0, dir_str)
+            _SYS_PATH_ADDED.append(dir_str)
 
         for path in sorted(self.directory.glob("*.py")):
             if path.name.startswith("_"):
@@ -140,11 +153,15 @@ class TemplateLoader:
             )
 
     def _forget_dir_modules(self) -> None:
-        """把从模板目录加载过的模块从 sys.modules 移除，保证刷新拿到新代码。"""
+        """把从任何已扫描模板目录加载过的模块移出 sys.modules，保证刷新拿到新代码。
+
+        覆盖全部已扫描目录（不只当前目录）——否则后扫目录 import 同名数据模块时
+        会命中先扫目录的缓存，拿错目录的数据表。
+        """
         stale = [
             name for name, mod in sys.modules.items()
             if getattr(mod, "__file__", None)
-            and Path(mod.__file__).resolve().parent == self.directory
+            and Path(mod.__file__).resolve().parent in _SCANNED_DIRS
         ]
         for name in stale:
             sys.modules.pop(name, None)

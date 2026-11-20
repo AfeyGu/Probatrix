@@ -105,7 +105,13 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
                 f"实际返回 {type(book).__name__}"
             ),
         )
-    return RunResult().from_book(book)
+    try:
+        return RunResult().from_book(book)
+    except Exception:                           # 鸭子对象缺 checks 等属性：同样不抛
+        return RunResult(
+            error_title="计算结果读取失败",
+            error=traceback.format_exc(),
+        )
 
 
 # ----------------------------------------------------------------------

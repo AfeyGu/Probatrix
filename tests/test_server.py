@@ -137,6 +137,57 @@ def test_hash_check_stale(client: TestClient, tmp_path: Path) -> None:
     assert rows[0]["stale"] is False
 
 
+def test_hash_check_detects_file_edit_without_refresh(
+        client: TestClient, tmp_path: Path) -> None:
+    """模板文件被改但没点「刷新模板」：hash-check 以磁盘为准，立刻标记失效。"""
+    doc = _proj_doc()
+    doc["items"][0]["template_hash"] = \
+        client.get("/api/templates/gl.calc/schema").json()["hash"]
+    client.put("/api/project", json=doc)
+    assert client.get("/api/hash-check").json()["items"][0]["stale"] is False
+
+    tpl = tmp_path / "gl.py"
+    tpl.write_text(tpl.read_text(encoding="utf-8") + "\n# 改代码\n", encoding="utf-8")
+    rows = client.get("/api/hash-check").json()["items"]    # 不 refresh
+    assert rows[0]["stale"] is True
+
+
+def test_load_project_bad_file_400(client: TestClient, tmp_path: Path) -> None:
+    """坏工程文件：400 + 可读原因（而非 500）。"""
+    bad = tmp_path / "bad.cbproj"
+    bad.write_text("{oops", encoding="utf-8")
+    r = client.post("/api/project/load", json={"path": str(bad)})
+    assert r.status_code == 400
+    assert "载入工程失败" in r.json()["detail"]
+
+
+def test_save_project_bad_dir_400(client: TestClient, tmp_path: Path) -> None:
+    r = client.post("/api/project/save",
+                    json={"path": str(tmp_path / "no_such_dir" / "p.cbproj")})
+    assert r.status_code == 400
+    assert "保存工程失败" in r.json()["detail"]
+
+
+def test_refresh_missing_dir_400(client: TestClient, tmp_path: Path) -> None:
+    """模板目录被删后刷新：400 + 中文提示（而非 500）。"""
+    import shutil
+    shutil.rmtree(tmp_path)
+    r = client.post("/api/templates/refresh")
+    assert r.status_code == 400
+    assert "模板目录不存在" in r.json()["detail"]
+
+
+# ----------------------------------------------------------------------
+# CORS：仅放行本机开发端口，其余来源不加许可头
+# ----------------------------------------------------------------------
+def test_cors_foreign_origin_rejected(client: TestClient) -> None:
+    r = client.get("/api/project", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in r.headers
+
+    ok = client.get("/api/project", headers={"Origin": "http://127.0.0.1:5173"})
+    assert ok.headers.get("access-control-allow-origin") == "http://127.0.0.1:5173"
+
+
 # ----------------------------------------------------------------------
 # 导出 HTML
 # ----------------------------------------------------------------------

@@ -206,10 +206,14 @@ class CalcBook:
 
         op="le"（默认）：value ≤ limit 成立即满足（需求 ≤ 提供）；
         op="ge"：value ≥ limit 成立即满足（提供 ≥ 需求）。
-        ratio：比值，缺省按 le=value/limit、ge=limit/value 计算。
+        ratio：比值，缺省按 le=value/limit、ge=limit/value 计算；
+        分母为 0（如 limit=0 的 le 验算）时置 None，判定不受影响。
         """
         if ratio is None:
-            ratio = value / limit if op == "le" else limit / value
+            if op == "le":
+                ratio = value / limit if limit else None
+            else:
+                ratio = limit / value if value else None
         passed = (value <= limit) if op == "le" else (value >= limit)
         self._items.append(
             _Item(kind="check", name=name, value=value, limit=limit,
@@ -386,13 +390,11 @@ def _table_html(header: list[str], rows: list[list[Any]]) -> list[str]:
 
 
 # ----------------------------------------------------------------------
-# 推导链：formula 与其后同左符号的连续 subs 合并为一条等式串；
-# 左符号不同的 subs 断链（不同公式各自成行）。derive() 产物已成型，
-# 含 aligned 标记的跳过；旧写法在此免费升级显示形态。
+# 数值格式：整数不带小数，其余按默认有效位数
 # ----------------------------------------------------------------------
 def _fmt(v: float | None) -> str:
     if v is None:
         return "—"
     if isinstance(v, int) or float(v).is_integer():
         return str(int(v))
-    return f"{v:.4g}"
+    return f"{v:.{_DEFAULT_DIGITS}g}"
