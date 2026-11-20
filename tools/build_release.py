@@ -3,7 +3,7 @@
 产物：release/calcbook-<版本>.zip
   ├─ CalcBook.exe            （PyInstaller 单文件启动器，窗口程序，只含 stdlib）
   ├─ python/                 （嵌入版 Python，构建时预装全部依赖，含 pip）
-  ├─ examples/               （模板，gl.py、stair.py）
+  ├─ examples/               （模板，gl.py、stair.py、canopy.py）
   └─ docs/                   （模板开发指南）
 
 用户侧解压双击 CalcBook.exe 即用：不依赖系统 Python、零联网、
@@ -13,7 +13,7 @@
 预装清单（B 档）：calcbook wheel + numpy scipy pandas matplotlib
 openpyxl（pywebview/pydantic/fastapi/uvicorn 由 wheel 依赖自动带入）。
 
-依赖：pip install build pyinstaller
+依赖：pip install build pyinstaller pillow（pillow 仅 tools/make_icon.py 用）
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 import urllib.request
 from pathlib import Path
 
@@ -37,16 +38,19 @@ PREINSTALL = ["numpy", "scipy", "pandas", "matplotlib", "openpyxl"]
 
 
 def version() -> str:
-    m = re.search(r'version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    if not m:
-        raise SystemExit("pyproject.toml 里找不到 version")
-    return m.group(1)
+    with open(ROOT / "pyproject.toml", "rb") as f:
+        ver = tomllib.load(f).get("project", {}).get("version")
+    if not ver:
+        raise SystemExit("pyproject.toml 的 [project] 段里找不到 version")
+    return ver
 
 
 def build_wheel() -> Path:
     print("==> 构建 wheel")
     shutil.rmtree(ROOT / "dist", ignore_errors=True)  # 清残留 wheel，避免版本混淆
-    subprocess.run([sys.executable, "-m", "build", "--wheel"], cwd=ROOT, check=True)
+    r = subprocess.run([sys.executable, "-m", "build", "--wheel"], cwd=ROOT)
+    if r.returncode != 0:
+        raise SystemExit(f"wheel 构建失败（rc={r.returncode}，见上方日志）")
 
     def key(p: Path) -> tuple:  # 版本序：a10 > a9（字符串序会错）
         nums = re.findall(r"\d+", p.name)
@@ -54,19 +58,20 @@ def build_wheel() -> Path:
 
     wheels = sorted((ROOT / "dist").glob("calcbook-*.whl"), key=key)
     if not wheels:
-        raise SystemExit("wheel 构建失败")
+        raise SystemExit("wheel 构建失败（dist/ 下没有 calcbook-*.whl）")
     return wheels[-1]
 
 
 def build_launcher() -> Path:
     print("==> 打包 CalcBook.exe（PyInstaller 单文件窗口程序）")
-    subprocess.run(
+    r = subprocess.run(
         [sys.executable, "-m", "PyInstaller", "--onefile", "--windowed", "--clean",
          "--name", "CalcBook", "--icon", str(ROOT / "assets" / "icon.ico"),
          "--distpath", str(RELEASE / "_build" / "dist"),
          "--workpath", str(RELEASE / "_build" / "work"), "--specpath", str(RELEASE),
-         str(ROOT / "tools" / "launcher.py")],
-        check=True)
+         str(ROOT / "tools" / "launcher.py")])
+    if r.returncode != 0:
+        raise SystemExit(f"PyInstaller 打包失败（rc={r.returncode}，见上方日志）")
     return RELEASE / "_build" / "dist" / "CalcBook.exe"
 
 
@@ -154,6 +159,13 @@ def trim_site_packages(python_dir: Path) -> None:
 
 def assemble(exe: Path, tag: str) -> Path:
     print("==> 组装发布目录")
+    # 防呆：前端产物（构建时随 wheel 进 site-packages）缺了会导致离线包
+    # 打开只有 JSON 页、导出 500——在打包前就报出来
+    site = APP / "python" / "Lib" / "site-packages" / "calcbook"
+    for rel in ("web/index.html", "vendor/katex/katex.min.css"):
+        if not (site / rel).is_file():
+            raise SystemExit(f"包内缺少 {rel}——前端产物未随 wheel 打入，"
+                             f"请先 cd web && npm run build 再构建发布包")
     (APP / "examples").mkdir(parents=True, exist_ok=True)
     shutil.copy2(exe, APP / exe.name)
     for tpl in sorted((ROOT / "examples").glob("*.py")):
@@ -175,7 +187,7 @@ def assemble(exe: Path, tag: str) -> Path:
 文件说明：
   CalcBook.exe                 —— 启动器
   python/                      —— 内置 Python {PY_VERSION} 及全部依赖（已预装，勿改动）
-  examples/                    —— 计算书示例模板（gl 梁、stair 楼梯）
+  examples/                    —— 计算书示例模板（gl 梁、stair 楼梯、canopy 雨篷）
   docs/模板开发指南.md          —— 模板开发指南（学习写自己的模板）
 """, encoding="utf-8")
     print("==> 压缩 zip")
@@ -206,6 +218,7 @@ def main() -> None:
     zip_path = assemble(exe, tag)
     shutil.rmtree(APP)
     shutil.rmtree(RELEASE / "_build")
+    (RELEASE / "CalcBook.spec").unlink(missing_ok=True)  # PyInstaller --specpath 残留
     size_mb = zip_path.stat().st_size / 1024 / 1024
     print(f"\n完成：{zip_path}（{size_mb:.1f} MB）")
 

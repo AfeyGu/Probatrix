@@ -19,15 +19,19 @@ from __future__ import annotations
 
 import ctypes
 import os
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 LOG_NAME = "calcbook.log"  # 启动日志写在 exe 同目录，排障用
-CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW  # 子进程一律不弹控制台窗口
+CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 子进程一律不弹控制台窗口
 PIP_INDEX = os.environ.get(
     "CALCBOOK_PIP_INDEX", "https://mirrors.aliyun.com/pypi/simple")
+
+#: 合法的 pip 包名（同时堵住 `-` 开头的选项注入：依赖声明字符串会进 pip argv）
+_PKG_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 LOG_PATH: Path | None = None  # main() 启动时指向 exe 同目录 calcbook.log
 
@@ -38,6 +42,8 @@ CHECK_CODE = (
 
 # 模板依赖扫描脚本：AST 解析各模板的 __calcbook_requires__ 声明（不导入模板模块，
 # 避免模块级副作用/自身缺库），用 find_spec 检查是否可用，输出缺失的 import 名。
+# 单个文件解析失败只跳过该文件（stderr 记录），不让整体扫描失败——
+# 否则一个语法错误的模板会让「依赖齐全」误判、自动安装永久失效。
 DEPS_CHECK_SCRIPT = r'''
 import ast
 import importlib.util
@@ -59,7 +65,10 @@ deps = []
 for p in sorted(Path(sys.argv[1]).glob("*.py")):
     if p.name.startswith("_"):
         continue
-    deps += collect(p)
+    try:
+        deps += collect(p)
+    except (SyntaxError, OSError) as e:
+        print(f"跳过无法解析的模板 {p.name}：{e}", file=sys.stderr)
 missing = [d for d in dict.fromkeys(deps) if importlib.util.find_spec(d) is None]
 if missing:
     print("\n".join(missing))
@@ -225,27 +234,49 @@ def probe_env(py: Path) -> tuple[bool, str | None]:
     return r.returncode == 0 and bool(ver), ver or None
 
 
-def missing_template_deps(py: Path, examples: Path) -> list[str]:
-    """用包内 python 扫模板声明，返回缺的第三方库（import 名）。"""
+def missing_template_deps(py: Path, examples: Path) -> list[str] | None:
+    """用包内 python 扫模板声明，返回缺的第三方库（import 名）。
+
+    扫描失败（超时/脚本异常）返回 None——与「确实无缺失」区分开，
+    由调用方记日志跳过，避免把失败静默当成「依赖齐全」。
+    """
     try:
         r = subprocess.run([str(py), "-c", DEPS_CHECK_SCRIPT, str(examples)],
                            capture_output=True, text=True, timeout=60,
                            creationflags=CREATE_NO_WINDOW)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log(f"模板依赖扫描失败（{e}），跳过自动安装。")
+        return None
+    if r.returncode != 0:
+        tail = " | ".join((r.stderr or "").strip().splitlines()[-3:])
+        log(f"模板依赖扫描异常（rc={r.returncode}），跳过自动安装：{tail}")
+        return None
     return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
 
 
 def ensure_template_deps(py: Path, examples: Path) -> None:
     """模板声明了但包内没装的库，用包内 pip（国内镜像）自动补装进 python/。"""
     missing = missing_template_deps(py, examples)
+    if missing is None:                 # 扫描失败已在内部记日志
+        return
     if not missing:
         log("模板依赖齐全，无需额外安装。")
         return
-    log(f"模板需要额外库：{'、'.join(missing)}，正在自动安装（源：{PIP_INDEX}）…")
-    splash_show(f"正在安装模板依赖：{'、'.join(missing)}…\n（详见 {LOG_NAME}）")
-    rc = run_logged([str(py), "-m", "pip", "install", "-i", PIP_INDEX, *missing],
-                    timeout=1800)
+    # 依赖声明是 import 名，会作为 pip 参数：白名单过滤掉选项注入/非法字符
+    safe = [m for m in missing if _PKG_NAME.match(m)]
+    rejected = [m for m in missing if not _PKG_NAME.match(m)]
+    if rejected:
+        log(f"忽略不合法的依赖声明：{rejected}")
+    if not safe:
+        return
+    log(f"模板需要额外库：{'、'.join(safe)}，正在自动安装（源：{PIP_INDEX}）…")
+    splash_show(f"正在安装模板依赖：{'、'.join(safe)}…\n（详见 {LOG_NAME}）")
+    try:
+        rc = run_logged([str(py), "-m", "pip", "install", "-i", PIP_INDEX,
+                         "--no-input", "--", *safe], timeout=1800)
+    except subprocess.TimeoutExpired:
+        log("模板依赖安装超时（30 分钟），已中止；不影响启动。")
+        return
     if rc != 0:
         log("模板依赖安装失败（不影响启动；运行对应模板时会提示缺少依赖）。")
 
@@ -278,9 +309,31 @@ def main() -> int:
     splash_close()  # 环境就绪：收起启动画面，打开主窗口
     log(f"启动服务（桌面窗口模式），模板目录：{examples}")
     log("服务地址：http://127.0.0.1:8317（如被占用会自动递加，界面顶栏显示实际地址）")
-    return run_logged([str(py), "-m", "calcbook.cli", "serve",
-                       "--ui", "webview", "--templates", str(examples)])
+    rc = run_logged([str(py), "-m", "calcbook.cli", "serve",
+                     "--ui", "webview", "--templates", str(examples)])
+    if rc != 0:     # 窗口程序：serve 异常退出时用户只看到窗口消失——弹窗提示原因
+        return fatal(f"服务异常退出（代码 {rc}），详情见 {LOG_NAME}。")
+    return rc
+
+
+def _crash_guard() -> int:
+    """兜底：main 未捕获的异常也要在窗口程序下可见（写日志 + 弹窗）。"""
+    import traceback
+    tb = traceback.format_exc()
+    try:
+        print(tb, flush=True)           # 已重定向进日志
+    except Exception:
+        pass
+    last = tb.strip().splitlines()[-1] if tb.strip() else "未知错误"
+    _msgbox(f"CalcBook 启动失败：{last}\n\n详情见 {LOG_NAME}（与 CalcBook.exe 同目录）。",
+            "CalcBook 启动失败", 0x10)
+    return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        sys.exit(_crash_guard())
