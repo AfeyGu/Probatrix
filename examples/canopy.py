@@ -82,20 +82,24 @@ class CanopyParams(BaseModel):
     """雨篷板参数。「几何」每块板各自输入；材料、荷载与系数可整组统一设置。"""
 
     # —— 几何（每块雨篷板各自输入）——
-    h1: float = Field(100, label="根部板厚 h1", unit="mm", gt=0, group="几何")
-    h2: float = Field(80, label="端部板厚 h2", unit="mm", gt=0, group="几何")
-    b: float = Field(60, label="翻边宽度 b", unit="mm", gt=0, group="几何")
-    h3: float = Field(150, label="翻边高度 h3", unit="mm", gt=0, group="几何")
+    h1: float = Field(100, label="根部板厚 h1", unit="mm", gt=0, group="几何",
+                     row="thick")
+    h2: float = Field(80, label="端部板厚 h2", unit="mm", gt=0, group="几何",
+                     row="thick")
+    b: float = Field(60, label="翻边宽度 b", unit="mm", gt=0, group="几何",
+                    row="flap")
+    h3: float = Field(150, label="翻边高度 h3", unit="mm", gt=0, group="几何",
+                     row="flap")
     L: float = Field(1000, label="挑出长度 L", unit="mm", gt=0, group="几何")
 
     # —— 材料 ——
     concrete: str = Field(
         "C30", label="混凝土等级",
-        choices=list(CONCRETE), group="材料", batch_hidden=True,
+        choices=list(CONCRETE), group="材料", batch_hidden=True, row="mat",
     )
     rebar: str = Field(
         "HRB400", label="钢筋等级",
-        choices=list(REBAR), group="材料", batch_hidden=True,
+        choices=list(REBAR), group="材料", batch_hidden=True, row="mat",
     )
 
     # —— 荷载与系数（批量时整组统一设置）——
@@ -114,11 +118,11 @@ class CanopyParams(BaseModel):
     )
     gamma_g: float = Field(
         1.3, label="恒载分项系数 γG", gt=0,
-        group="荷载与系数", batch_hidden=True,
+        group="荷载与系数", batch_hidden=True, row="gamma",
     )
     gamma_q: float = Field(
         1.5, label="活载分项系数 γQ", gt=0,
-        group="荷载与系数", batch_hidden=True,
+        group="荷载与系数", batch_hidden=True, row="gamma",
     )
     psi_q: float = Field(
         0.5, label="活载准永久值系数 ψq", ge=0, le=1,
@@ -134,22 +138,22 @@ class CanopyParams(BaseModel):
     )
     r_c: float = Field(
         25, label="混凝土容重 r", unit="kN/m³", gt=0,
-        group="荷载与系数", batch_hidden=True,
+        group="荷载与系数", batch_hidden=True, row="mix",
     )
     cover: float = Field(
         15, label="保护层厚度 c", unit="mm", gt=0,
-        group="荷载与系数", batch_hidden=True,
+        group="荷载与系数", batch_hidden=True, row="mix",
     )
 
     # —— 实配钢筋（裂缝校核用）——
     dia: float = Field(
         8, label="实配钢筋直径 d", unit="mm", gt=0, le=32,
-        group="实配钢筋",
+        group="实配钢筋", row="bar",
         description="裂缝校核用；deq = d",
     )
     s: float = Field(
         150, label="实配钢筋间距 s", unit="mm", gt=0,
-        group="实配钢筋",
+        group="实配钢筋", row="bar",
         description="按 b=1000mm 计算 As_实 = 1000·π·d²/(4s)",
     )
 

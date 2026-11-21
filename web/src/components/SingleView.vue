@@ -73,6 +73,41 @@ function controlType(p) {
   if (p.type === 'bool') return 'switch'
   return 'text'
 }
+
+// ---- 布局原语（契约：row 相邻同标记并排；show_if 条件显隐、值保留）----
+function evalShowIf(p) {
+  if (!p.show_if) return true
+  const params = item.value?.params ?? {}
+  const expr = String(p.show_if)
+  // 形式1：参数名 == / != 字面量（字符串带引号，或裸数字）
+  const m = expr.match(/^\s*([A-Za-z_]\w*)\s*(==|!=)\s*(.*?)\s*$/)
+  if (m) {
+    const v = params[m[1]]
+    const rhs = m[3]
+    const q = rhs.match(/^(['"])(.*)\1$/)
+    let target
+    if (q) target = q[2]
+    else { target = Number(rhs); if (Number.isNaN(target)) target = rhs }
+    return m[2] === '==' ? v == target : v != target   // 宽松相等：均为原始值
+  }
+  // 形式2：直接引用 bool 参数名
+  const ref = expr.trim()
+  if (ref in params) return !!params[ref]
+  console.warn('show_if 无法解析：', expr)
+  return true
+}
+
+// 组内参数 → 渲染行数组：滤掉不显示的，相邻同 row 标记合并成一行
+function rowsOf(params) {
+  const rows = []
+  for (const p of params) {
+    if (!evalShowIf(p)) continue
+    const last = rows[rows.length - 1]
+    if (p.row && last?.length && last[0].row === p.row) last.push(p)
+    else rows.push([p])
+  }
+  return rows
+}
 </script>
 
 <template>
@@ -90,21 +125,24 @@ function controlType(p) {
       <el-collapse v-model="openGroups">
         <el-collapse-item v-for="g in groups" :key="g.name" :name="g.name">
           <template #title><span class="group-name">{{ g.name }}</span></template>
-          <div v-for="p in g.params" :key="p.name" class="field">
-            <div class="field-label">
-              {{ p.label || p.name }}
-              <span v-if="p.unit" class="unit">（{{ p.unit }}）</span>
+          <div v-for="(r, i) in rowsOf(g.params)" :key="i"
+               class="field-row" :style="{ '--n': r.length }">
+            <div v-for="p in r" :key="p.name" class="field">
+              <div class="field-label">
+                {{ p.label || p.name }}
+                <span v-if="p.unit" class="unit">（{{ p.unit }}）</span>
+              </div>
+              <el-select v-if="controlType(p) === 'select'"
+                         v-model="item.params[p.name]" @change="onChanged">
+                <el-option v-for="c in p.choices" :key="c" :value="c" :label="c" />
+              </el-select>
+              <el-input-number v-else-if="controlType(p) === 'number'"
+                               v-model="item.params[p.name]" :controls="false"
+                               class="num" @change="onChanged" />
+              <el-switch v-else-if="controlType(p) === 'switch'"
+                         v-model="item.params[p.name]" @change="onChanged" />
+              <el-input v-else v-model="item.params[p.name]" @change="onChanged" />
             </div>
-            <el-select v-if="controlType(p) === 'select'"
-                       v-model="item.params[p.name]" @change="onChanged">
-              <el-option v-for="c in p.choices" :key="c" :value="c" :label="c" />
-            </el-select>
-            <el-input-number v-else-if="controlType(p) === 'number'"
-                             v-model="item.params[p.name]" :controls="false"
-                             class="num" @change="onChanged" />
-            <el-switch v-else-if="controlType(p) === 'switch'"
-                       v-model="item.params[p.name]" @change="onChanged" />
-            <el-input v-else v-model="item.params[p.name]" @change="onChanged" />
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -133,7 +171,9 @@ function controlType(p) {
 .pane-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .item-name { width: 200px; }
 .group-name { font-weight: 600; }
-.field { margin-bottom: 16px; }
+.field-row { display: grid;
+             grid-template-columns: repeat(var(--n, 1), 1fr);
+             gap: 0 12px; margin-bottom: 16px; align-items: start; }
 .field-label { font-size: 13px; color: var(--cb-text-2); margin-bottom: 4px; }
 .unit { color: var(--cb-text-3); font-size: 12px; }
 .num { width: 100%; }

@@ -92,12 +92,17 @@ class StairParams(BaseModel):
         "两端弹性", label="支座形式",
         choices=["两端弹性", "下铰上弹"], group="几何",
     )
-    a: float = Field(280, label="踏步宽度 a", unit="mm", gt=0, group="几何")
-    d: float = Field(150, label="踏步高度 d", unit="mm", gt=0, group="几何")
-    n: int = Field(5, label="踏步数 n", ge=1, group="几何")
-    L1: float = Field(0, label="A端折板长度 L1", unit="mm", ge=0, group="几何")
-    L2: float = Field(0, label="B端折板长度 L2", unit="mm", ge=0, group="几何")
-    B: float = Field(1200, label="梯段板宽度 B", unit="mm", gt=0, group="几何")
+    a: float = Field(280, label="踏步宽度 a", unit="mm", gt=0, group="几何",
+                    row="step")
+    d: float = Field(150, label="踏步高度 d", unit="mm", gt=0, group="几何",
+                    row="step")
+    n: int = Field(5, label="踏步数 n", ge=1, group="几何", row="span")
+    B: float = Field(1200, label="梯段板宽度 B", unit="mm", gt=0, group="几何",
+                     row="span")
+    L1: float = Field(0, label="A端折板长度 L1", unit="mm", ge=0, group="几何",
+                      row="fold")
+    L2: float = Field(0, label="B端折板长度 L2", unit="mm", ge=0, group="几何",
+                      row="fold")
     g_rail: float = Field(
         0.5, label="两侧栏板(杆)线荷载标准值 g", unit="kN/m", ge=0, group="几何",
     )
@@ -105,46 +110,55 @@ class StairParams(BaseModel):
     # —— 材料 ——
     concrete: str = Field(
         "C30", label="混凝土等级",
-        choices=list(CONCRETE), group="材料", batch_hidden=True,
+        choices=list(CONCRETE), group="材料", batch_hidden=True, row="mat",
     )
     rebar: str = Field(
         "HRB400", label="楼梯纵筋级别",
-        choices=list(REBAR), group="材料", batch_hidden=True,
+        choices=list(REBAR), group="材料", batch_hidden=True, row="mat",
     )
 
     # —— 荷载与系数（批量时整组统一设置）——
     q_live: float = Field(3.5, label="楼梯活荷载标准值 q", unit="kN/m²", gt=0,
                           group="荷载与系数")
-    gamma0: float = Field(1.0, label="结构重要性系数 γ0", gt=0,
-                          group="荷载与系数", batch_hidden=True)
     gamma_g: float = Field(1.3, label="恒载分项系数 γG", gt=0,
-                           group="荷载与系数", batch_hidden=True)
+                           group="荷载与系数", batch_hidden=True, row="gamma")
     gamma_q: float = Field(1.5, label="活载分项系数 γQ", gt=0,
-                           group="荷载与系数", batch_hidden=True)
+                           group="荷载与系数", batch_hidden=True, row="gamma")
+    gamma0: float = Field(1.0, label="结构重要性系数 γ0", gt=0,
+                          group="荷载与系数", batch_hidden=True, row="coef")
     psi_q: float = Field(0.4, label="活载准永久值系数 ψq", ge=0, le=1,
-                         group="荷载与系数", batch_hidden=True)
+                         group="荷载与系数", batch_hidden=True, row="coef")
+    # 面层/抹灰开关：show_if 只管表单显隐（值保留），计算里另有分支
+    finish: bool = Field(True, label="楼梯面层", group="荷载与系数",
+                         row="finish")
+    t1: float = Field(30, label="面层厚度 t1", unit="mm", ge=0,
+                      group="荷载与系数", batch_hidden=True,
+                      row="finish", show_if="finish")
+    r1: float = Field(22, label="面层容重 r1", unit="kN/m³", gt=0,
+                      group="荷载与系数", batch_hidden=True,
+                      row="finish", show_if="finish")
+    plaster: bool = Field(True, label="底面抹灰", group="荷载与系数",
+                          row="plaster")
+    t2: float = Field(20, label="抹灰厚度 t2", unit="mm", ge=0,
+                      group="荷载与系数", batch_hidden=True,
+                      row="plaster", show_if="plaster")
+    r2: float = Field(18, label="底面抹灰容重 r2", unit="kN/m³", gt=0,
+                      group="荷载与系数", batch_hidden=True,
+                      row="plaster", show_if="plaster")
+    r_c: float = Field(25, label="混凝土容重 r", unit="kN/m³", gt=0,
+                       group="荷载与系数", batch_hidden=True, row="mix")
+    cover: float = Field(15, label="保护层厚度 c", unit="mm", gt=0,
+                         group="荷载与系数", batch_hidden=True, row="mix")
     step_factor: float = Field(
-        0.2, label="踏步刚度系数 λ", ge=0, group="荷载与系数",
+        0.2, label="踏步刚度系数 λ", ge=0, group="荷载与系数", row="rebar",
         description="挠度计算的等效截面高度 h0'=h0+λ·d·cosα 中的系数",
     )
     rho_min: float = Field(0.2, label="楼梯最小配筋率 ρmin", unit="%", gt=0,
-                           group="荷载与系数")
-    t1: float = Field(30, label="楼梯面层厚度 t1", unit="mm", ge=0,
-                      group="荷载与系数", batch_hidden=True)
-    r1: float = Field(22, label="楼梯面层容重 r1", unit="kN/m³", gt=0,
-                      group="荷载与系数", batch_hidden=True)
-    t2: float = Field(20, label="底面抹灰厚度 t2", unit="mm", ge=0,
-                      group="荷载与系数", batch_hidden=True)
-    r2: float = Field(18, label="底面抹灰容重 r2", unit="kN/m³", gt=0,
-                      group="荷载与系数", batch_hidden=True)
-    r_c: float = Field(25, label="混凝土容重 r", unit="kN/m³", gt=0,
-                       group="荷载与系数", batch_hidden=True)
-    cover: float = Field(15, label="保护层厚度 c", unit="mm", gt=0,
-                         group="荷载与系数", batch_hidden=True)
+                           group="荷载与系数", row="rebar")
     b_a: float = Field(200, label="A端支座宽度 bA", unit="mm", gt=0,
-                       group="荷载与系数")
+                       group="荷载与系数", row="bearing")
     b_b: float = Field(200, label="B端支座宽度 bB", unit="mm", gt=0,
-                       group="荷载与系数")
+                       group="荷载与系数", row="bearing")
 
 
 # ----------------------------------------------------------------------
@@ -173,8 +187,8 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
     # ---- 荷载（kN/m²，水平投影）----
     g1 = p.r_c * p.d / 2000                          # 三角形踏步 r·d/2
     g2 = t / 1000 * p.r_c / cos_a                    # 板厚自重
-    g3 = (p.a + p.d) / p.a * p.t1 / 1000 * p.r1      # 面层（踏步平+立面）
-    g4 = p.t2 / 1000 * p.r2 / cos_a                  # 底面抹灰
+    g3 = (p.a + p.d) / p.a * p.t1 / 1000 * p.r1 if p.finish else 0.0  # 面层（踏步平+立面）
+    g4 = p.t2 / 1000 * p.r2 / cos_a if p.plaster else 0.0  # 底面抹灰
     g5 = p.g_rail / (p.B / 1000) / cos_a             # 栏杆（线荷载摊到板宽）
     g_k = g1 + g2 + g3 + g4 + g5
     p_u = p.gamma_g * g_k + p.gamma_q * p.q_live     # 基本组合（γ0 未乘入，同原表）
@@ -287,16 +301,16 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
     b.h3("1. 设计依据")
     b.p("《混凝土结构设计标准》GB/T 50010-2010（2024年版）。")
     b.h3("2. 计算条件")
+    finish_txt = f"{p.t1:g} mm / {p.r1:g} kN/m³" if p.finish else "无"
+    plaster_txt = f"{p.t2:g} mm / {p.r2:g} kN/m³" if p.plaster else "无"
     b.table(["参数", "取值", "参数", "取值"], [
         ["支座形式", p.support, "结构重要性系数 γ0", f"{p.gamma0:g}"],
         ["踏步宽度 a", f"{p.a:g} mm", "恒载分项系数 γG", f"{p.gamma_g:g}"],
         ["踏步高度 d", f"{p.d:g} mm", "活载分项系数 γQ", f"{p.gamma_q:g}"],
         ["踏步数 n", f"{p.n:g}", "活载准永久值系数 ψq", f"{p.psi_q:g}"],
         ["A端折板长度 L1", f"{p.L1:g} mm", "最小配筋率 ρmin", f"{p.rho_min:g}%"],
-        ["B端折板长度 L2", f"{p.L2:g} mm", "面层厚度 t1 / 容重 r1",
-         f"{p.t1:g} mm / {p.r1:g} kN/m³"],
-        ["梯段板宽度 B", f"{p.B:g} mm", "抹灰厚度 t2 / 容重 r2",
-         f"{p.t2:g} mm / {p.r2:g} kN/m³"],
+        ["B端折板长度 L2", f"{p.L2:g} mm", "面层厚度 t1 / 容重 r1", finish_txt],
+        ["梯段板宽度 B", f"{p.B:g} mm", "抹灰厚度 t2 / 容重 r2", plaster_txt],
         ["栏板(杆)线荷载 g", f"{p.g_rail:g} kN/m", "混凝土容重 r",
          f"{p.r_c:g} kN/m³"],
         ["A/B端支座宽度 bA/bB", f"{p.b_a:g} / {p.b_b:g} mm",
@@ -331,16 +345,22 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         r"\dfrac{t \cdot r}{1000\cos\alpha}",
         rf"\dfrac{{{t:g} \times {p.r_c:g}}}{{1000 \times {cos_a:.4f}}} = {g2:.3f}\ \mathrm{{kN/m^2}}" r"\quad (梯段板自重)",
     )
-    b.derive(
-        r"g_{k3}",
-        r"\dfrac{(a+d)\, t_1 r_1}{1000\,a}",
-        rf"\dfrac{{({p.a:g}+{p.d:g}) \times {p.t1:g} \times {p.r1:g}}}{{1000 \times {p.a:g}}} = {g3:.3f}\ \mathrm{{kN/m^2}}" r"\quad (面层，踏步平、立面)",
-    )
-    b.derive(
-        r"g_{k4}",
-        r"\dfrac{t_2 r_2}{1000\cos\alpha}",
-        rf"\dfrac{{{p.t2:g} \times {p.r2:g}}}{{1000 \times {cos_a:.4f}}} = {g4:.3f}\ \mathrm{{kN/m^2}}" r"\quad (底面抹灰)",
-    )
+    if p.finish:
+        b.derive(
+            r"g_{k3}",
+            r"\dfrac{(a+d)\, t_1 r_1}{1000\,a}",
+            rf"\dfrac{{({p.a:g}+{p.d:g}) \times {p.t1:g} \times {p.r1:g}}}{{1000 \times {p.a:g}}} = {g3:.3f}\ \mathrm{{kN/m^2}}" r"\quad (面层，踏步平、立面)",
+        )
+    else:
+        b.derive(r"g_{k3}", r"0", r"0\ \mathrm{kN/m^2}" r"\quad (无面层)")
+    if p.plaster:
+        b.derive(
+            r"g_{k4}",
+            r"\dfrac{t_2 r_2}{1000\cos\alpha}",
+            rf"\dfrac{{{p.t2:g} \times {p.r2:g}}}{{1000 \times {cos_a:.4f}}} = {g4:.3f}\ \mathrm{{kN/m^2}}" r"\quad (底面抹灰)",
+        )
+    else:
+        b.derive(r"g_{k4}", r"0", r"0\ \mathrm{kN/m^2}" r"\quad (无底面抹灰)")
     b.derive(
         r"g_{k5}",
         r"\dfrac{g}{B \cos\alpha}",

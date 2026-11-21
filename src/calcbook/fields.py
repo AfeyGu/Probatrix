@@ -8,7 +8,11 @@
     class GLParams(BaseModel):
         steel: str = Field("Q235B", label="钢材牌号",
                            choices=["Q235B", "Q355B"], group="材料")
+        b: float = Field(60, label="截面宽 b", unit="mm", row="dims")
+        h: float = Field(300, label="截面高 h", unit="mm", row="dims")   # 与 b 并排一行
         Mx: float = Field(100, label="弯矩设计值", unit="kN·m", group="荷载")
+        t_loss: float = Field(0, label="防火涂层厚度", unit="mm",
+                              show_if="steel == 'Q235B'")                # 条件显示
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from pydantic.fields import FieldInfo, PydanticUndefined
 __all__ = ["Field", "param_meta"]
 
 #: Field 支持的 CalcBook 扩展元信息键
-_META_KEYS = ("label", "unit", "choices", "group", "batch_hidden")
+_META_KEYS = ("label", "unit", "choices", "group", "batch_hidden", "row", "show_if")
 
 
 def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
@@ -32,13 +36,19 @@ def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
     choices: list | tuple | None = None,
     group: str | None = None,
     batch_hidden: bool = False,
+    row: str | None = None,
+    show_if: str | None = None,
     **kwargs: Any,
 ) -> FieldInfo:
     """pydantic.Field 的薄包装，把界面元信息收进 json_schema_extra。
 
     声明即界面：label（中文名）、unit（单位，展示用）、choices（下拉选项）、
     group（参数分组；批量模式下同组参数可整组「统一设置」）、
-    batch_hidden（True 时批量表格默认不显示该列，可在「列显隐」里勾回）。
+    batch_hidden（True 时批量表格默认不显示该列，可在「列显隐」里勾回）、
+    row（布局：声明相邻且同标记的参数在单件表单并排一行）、
+    show_if（条件显隐：小表达式，不满足时单件表单隐藏该参数，值保留；
+    批量表格默认隐藏该列）。show_if 只是界面提示——开关想改变计算结果，
+    模板计算函数里要自己用该参数做分支。
     其余参数原样透传 pydantic.Field（如 ge、le、description）。
     """
     extra: dict[str, Any] = dict(kwargs.pop("json_schema_extra", None) or {})
@@ -48,6 +58,8 @@ def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
         ("choices", list(choices) if choices is not None else None),
         ("group", group),
         ("batch_hidden", batch_hidden or None),
+        ("row", row),
+        ("show_if", show_if),
     ):
         if value is not None:
             extra[key] = value

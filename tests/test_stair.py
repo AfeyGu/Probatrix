@@ -121,6 +121,18 @@ def test_param_meta(meta):
     assert len(hidden) == 12
     assert metas["concrete"]["choices"][0] == "C25"
     assert metas["rebar"]["choices"] == ["HPB300", "HRB400", "HRB500"]
+    # 布局原语：t1/r1 依赖 finish 开关（show_if + 计算分支 + 并排行）
+    assert metas["t1"]["show_if"] == "finish"
+    assert metas["t1"]["row"] == "finish"
+    assert "finish" not in hidden and "plaster" not in hidden  # 开关本身批量可见
+
+
+def test_finish_plaster_off(meta):
+    """面层/抹灰开关关闭：g_k 相应项计 0，公式注明原因。"""
+    r = _run(meta, name="无面层", finish=False, plaster=False)
+    assert r"&= 0\ \mathrm{kN/m^2}\quad (无面层)" in r.md
+    assert r"&= 0\ \mathrm{kN/m^2}\quad (无底面抹灰)" in r.md
+    assert r.all_ok is True
 
 
 def test_over_reinforced_raises(meta):

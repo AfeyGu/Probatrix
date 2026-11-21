@@ -59,7 +59,7 @@ from calcbook import CalcBook, Field, template
 
 
 class GLParams(BaseModel):
-    """参数声明：label/unit/choices/group 直接驱动界面。"""
+    """参数声明：label/unit/choices/group/row/show_if 直接驱动界面。"""
     steel: str = Field("Q235B", label="钢材牌号",
                        choices=["Q235B", "Q355B"], group="材料")
     fy: float = Field(215, label="抗弯强度设计值", unit="N/mm²", group="材料", gt=0)

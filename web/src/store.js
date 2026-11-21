@@ -264,8 +264,8 @@ export function applyToAll(templateId, fields) {
 export function hiddenCols(templateId) {
   const saved = store.project.views[templateId]?.hidden_cols
   if (saved) return saved
-  // 未保存过列配置：用参数声明里的默认隐藏标记（batch_hidden）
-  return (store.schema?.params ?? []).filter(p => p.batch_hidden).map(p => p.name)
+  // 未保存过列配置：用声明里的默认隐藏标记（batch_hidden，或带 show_if 的条件参数）
+  return (store.schema?.params ?? []).filter(p => p.batch_hidden || p.show_if).map(p => p.name)
 }
 
 export function toggleCol(templateId, name, visible) {

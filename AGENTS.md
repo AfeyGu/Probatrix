@@ -68,7 +68,7 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
   包内 Python，不随 zip 分发。用户解压双击即用：零联网、不依赖系统 Python、
   不写注册表/环境变量，删目录即完全卸载；仅模板缺第三方库时启动器用包内
   pip（国内镜像）补装进 `python/`。升级 = 整包替换。
-- **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回）。
+- **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden/row/show_if` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回；row：声明相邻且同标记的参数在单件表单并排一行；show_if：条件显隐小表达式，不满足时表单隐藏但值保留，批量侧降级为默认隐藏列——它只是界面提示，开关想改变计算需模板计算里自己分支）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。
@@ -77,6 +77,8 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **管线是 items → HTML 直通**（无 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定——改渲染必须同步契约文档（模板开发指南 §3.1）。
 
 ## 界面设计系统（Notion 风，改样式前先看这段）
+
+- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。本节其余内容为当前代码的样式实现说明。
 
 - **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布/表面/hover/文字/语义色），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
 - **主题切换 = 换 `data-theme` 属性下的 token 组**（现有米白/纯白/亚麻三套浅色，暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。

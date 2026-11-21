@@ -21,18 +21,28 @@ class DemoParams(BaseModel):
     steel: str = Field("Q235B", label="钢材牌号",
                        choices=["Q235B", "Q355B"], group="材料")
     fy: float = Field(215, label="抗弯强度设计值", unit="N/mm²", group="材料", gt=0)
+    tw: float = Field(8, label="腹板厚度 tw", unit="mm", group="材料", row="dims")
+    hw: float = Field(200, label="腹板高度 hw", unit="mm", group="材料", row="dims")
+    t_loss: float = Field(0, label="涂层厚度", unit="mm", group="材料",
+                          show_if="steel == 'Q235B'")
     note: str = "无元信息的普通字段"
 
 
 def test_param_meta_extracts_field_metadata() -> None:
     metas = param_meta(DemoParams)
-    assert [m["name"] for m in metas] == ["steel", "fy", "note"]  # 按声明顺序
-    steel, fy, note = metas
+    assert [m["name"] for m in metas] == [
+        "steel", "fy", "tw", "hw", "t_loss", "note",
+    ]  # 按声明顺序
+    steel, fy, tw, hw, t_loss, note = metas
     assert steel["label"] == "钢材牌号"
     assert steel["choices"] == ["Q235B", "Q355B"]
     assert steel["group"] == "材料"
     assert steel["default"] == "Q235B"
     assert fy["unit"] == "N/mm²"
+    # 布局原语：row（并排）与 show_if（条件显隐）原样透传
+    assert tw["row"] == "dims"
+    assert hw["row"] == "dims"
+    assert t_loss["show_if"] == "steel == 'Q235B'"
     # 无 Field 包装的字段也应出现在列表里（label 缺省）
     assert "label" not in note
 
