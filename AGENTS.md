@@ -76,16 +76,16 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。
 - **管线是 items → HTML 直通**（无 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定——改渲染必须同步契约文档（模板开发指南 §3.1）。
 
-## 界面设计系统（Notion 风，改样式前先看这段）
+## 界面设计系统（v2-pro 通透风，改样式前先看这段）
 
-- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。本节其余内容为当前代码的样式实现说明。
+- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。
 
-- **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布/表面/hover/文字/语义色），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
-- **主题切换 = 换 `data-theme` 属性下的 token 组**（现有米白/纯白/亚麻三套浅色，暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。
+- **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布与色斑/材质/文字/语义色/三档半径/字体三级），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
+- **主题切换 = 换 `data-theme` 属性下的色组**（雾蓝/素白/暖砂三套画布色相，材质与半径不变；暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。
 - EP 的 `--el-color-primary-light-3/5/7/8/9`、`-dark-2` 是编译期字面量，**换主色必须逐个覆盖**，只改 `--el-color-primary` 会让 plain 按钮/标签还是旧色。
-- Notion 风硬规则：禁渐变、禁大圆角（>8px）、禁重阴影、禁 translate/scale 动画；过渡只允许 background/border-color 150ms；按钮透明底、hover 仅背景变 `--cb-hover`、active `--cb-active`。
+- 硬规则（详见 `docs/ui-design.md` §6）：半径只许三档（卡 24 / 输入 8 / 操作胶囊 999px），禁止自定半径；按钮统一玻璃胶囊、无实心突出色；阴影蓝灰调双层；动效 150–200ms 只动 background/border-color/box-shadow；数值等宽（`--cb-font-num` + tabular-nums）；光自上来（上缘 1px 高光、下缘暗线）。
 - 双密度：批量表格保持紧凑（small/13px/单行），其余界面 14px 带呼吸感；批量表格列 min-width 由表头文字单行宽度算出（`colMinW`），单元格 nowrap。
-- 文档预览区（.cb-doc）是正式纸感（衬线/黑白），与界面风格刻意分区——预览必须与导出一致，改排版只改 `docstyle.py`。
+- 文档预览区（.cb-doc）是正式纸感（衬线/黑白/2px 直角，`.doc-paper` 显式白底），与界面风格刻意分区——预览必须与导出一致，改排版只改 `docstyle.py`。
 
 ## 前端易错点（都踩过）
 

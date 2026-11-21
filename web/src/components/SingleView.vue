@@ -163,22 +163,39 @@ function rowsOf(params) {
 </template>
 
 <style scoped>
-.single { display: flex; gap: 16px; height: 100%; }
-.pane { flex: 1; overflow: auto; background: var(--cb-surface);
-        border: 1px solid var(--cb-border); border-radius: 8px;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, .05); padding: 16px; }
+.single { display: flex; gap: 12px; height: 100%; }
+/* 玻璃卡（L1 Mica）：24px squircle + 上高光下暗线 + 顶部受光 */
+.pane {
+  flex: 1; overflow: auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 110px),
+              var(--cb-surface);
+  -webkit-backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--cb-r-card);
+  corner-shape: squircle;
+  box-shadow: inset 0 1px 0 var(--cb-glass-hi), inset 0 -1px 0 var(--cb-glass-lo),
+              0 1px 2px rgba(16, 28, 48, .05), 0 10px 28px -14px rgba(16, 28, 48, .18);
+  padding: 16px;
+}
 .preview-pane { flex: 1.618; } /* 预览 : 设置 = 0.618 : 0.382（黄金比） */
 .pane-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .item-name { width: 200px; }
-.group-name { font-weight: 600; }
+.group-name { font-weight: 600; font-family: var(--cb-font-display); }
 .field-row { display: grid;
              grid-template-columns: repeat(var(--n, 1), 1fr);
              gap: 0 12px; margin-bottom: 16px; align-items: start; }
 .field-label { font-size: 13px; color: var(--cb-text-2); margin-bottom: 4px; }
 .unit { color: var(--cb-text-3); font-size: 12px; }
 .num { width: 100%; }
-/* 预览：与导出同源排版的纸面（.cb-doc 样式来自 /api/doc.css） */
-.doc-paper { max-width: 794px; margin: 0 auto; }
+/* 预览：纸是纸——白底黑白衬线、2px 直角，不进玻璃体系（排版样式来自 /api/doc.css） */
+.doc-paper {
+  max-width: 794px; margin: 0 auto;
+  background: #fff;
+  border-radius: 2px; corner-shape: round;
+  box-shadow: 0 1px 2px rgba(16, 28, 48, .08), 0 16px 40px -18px rgba(16, 28, 48, .22);
+  padding: 30px 36px;
+}
 .err-pre { max-height: 300px; overflow: auto; font-size: 12px; line-height: 1.5;
            margin: 6px 0 0; white-space: pre-wrap; }
 </style>

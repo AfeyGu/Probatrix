@@ -285,16 +285,29 @@ async function onExportRowMd(row) {
 </template>
 
 <style scoped>
-.batch { height: 100%; display: flex; flex-direction: column; }
+/* 玻璃卡（L1 Mica）：工具栏 + 表格同在一张 24px squircle 卡内 */
+.batch {
+  height: 100%; display: flex; flex-direction: column;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 110px),
+              var(--cb-surface);
+  -webkit-backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--cb-r-card);
+  corner-shape: squircle;
+  box-shadow: inset 0 1px 0 var(--cb-glass-hi), inset 0 -1px 0 var(--cb-glass-lo),
+              0 1px 2px rgba(16, 28, 48, .05), 0 10px 28px -14px rgba(16, 28, 48, .18);
+}
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .summary { color: var(--cb-text-2); font-size: 13px; }
 .bad { color: var(--cb-bad); }
 .hint { color: var(--cb-text-3); font-size: 12px; }
 .unit { color: var(--cb-text-3); font-size: 11px; margin-left: 4px; font-weight: 400; }
 .grid { flex: 1; }
-/* 表格直接落在画布上：圆角融掉自身边框，不套卡片 */
-.grid { border-radius: 8px; }
-.grid :deep(.el-table__inner-wrapper::before) { border-radius: 8px; }
+/* 表格嵌在卡内：入口圆角小一档（8px），不贴卡边 */
+.grid { border-radius: var(--cb-r-ctl); corner-shape: squircle; }
+.grid :deep(.el-table__inner-wrapper::before) { border-radius: var(--cb-r-ctl); }
 /* 单元格/表头单行显示，不换行（配合 min-width 拖动下限） */
 .grid :deep(.el-table__cell .cell) { white-space: nowrap; }
 /* 操作列按钮收紧，保证完整显示 */
@@ -313,6 +326,7 @@ async function onExportRowMd(row) {
 .tip-pre { max-height: 220px; overflow: auto; font-size: 11px; }
 .uni-hint { font-size: 12px; color: var(--cb-text-3); line-height: 1.6;
             margin-bottom: 12px; padding: 8px 10px;
-            background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 6px; }
+            background: rgba(255, 255, 255, .55); border: 1px solid var(--cb-border);
+            border-radius: var(--cb-r-ctl); corner-shape: squircle; }
 .mixed-mark { color: var(--cb-warn); font-weight: 600; }
 </style>
