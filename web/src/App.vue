@@ -505,6 +505,20 @@ body {
 }
 .el-table th.el-table__cell { font-weight: 600; }
 .el-table td.el-table__cell, .el-table th.el-table__cell { border-bottom: 1px solid rgba(15, 34, 64, .07); }
+/* 冻结列必须有遮挡底色：表格整体透明化后，横滚内容会从固定列下方穿透
+   （EP 冻结列 = sticky 覆盖层，靠自身背景遮挡，见 AGENTS.md 前端易错点） */
+.el-table .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__cell.el-table-fixed-column--right {
+  background: rgba(248, 250, 253, .97);
+}
+.el-table th.el-table__cell.el-table-fixed-column--left,
+.el-table th.el-table__cell.el-table-fixed-column--right {
+  background: rgba(250, 252, 254, .97);
+}
+.el-table__body tr:hover > td.el-table-fixed-column--left,
+.el-table__body tr:hover > td.el-table-fixed-column--right {
+  background: rgba(233, 240, 250, .98);
+}
 .el-table td .cell { font-variant-numeric: tabular-nums; }
 /* 数值类输入：等宽数字（含批量表格与表单） */
 .el-input__inner { font-variant-numeric: tabular-nums; }

@@ -96,6 +96,7 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **EP 的 el-scrollbar 滚动条默认 hover 才显示**（v-show 的 display:none）——要常显必须 `display:block !important`，只覆盖 opacity 无效；thumb 宽度由 EP 在 resize/scroll 时计算，改容器宽度后要触发 window resize 才会更新。
 - **BatchView 的控件类型函数是 `cellType`，SingleView 的是 `controlType`**——同名不同文件，混用会运行时白屏（踩过：统一设置弹窗空白）。
 - 读 el-table 样式别读根元素的 borderColor——未设置的边 fallback 到 currentColor，会误判成深色；要看 td/th 具体边的 style+width+color。
+- **表格透明化后冻结列必须给遮挡底色**：EP 的冻结列（fixed）是 sticky 覆盖层，靠自身背景遮挡横滚内容——表格整体设透明（落在玻璃卡内）时，必须给 `.el-table-fixed-column--left/--right` 的 td/th 不透明底色（含 hover 态），否则中间列内容会穿透固定列（踩过）。
 - label 里包 el-button **不会**触发关联 file input（交互元素拦截转发），要用 `input.click()`。
 
 ## Git 约定
