@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CalcBook · 设计稿 v3 精致浅色</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+  :root{
+    /* 中性灰阶：三级文字 + 三级分隔线，层级靠字重与间距而非装饰 */
+    --ink:#1a1a18; --ink-2:#55554f; --ink-3:#8a8a83; --ink-4:#a8a8a1;
+    --hair:#dededa; --hair-2:#c6c6c0; --hair-3:#efefec;
+    --desk:#e9e9e6; --panel:#f7f7f5; --bar:#fbfbfa; --page:#ffffff;
+    --accent:#31556b; --accent-soft:rgba(49,85,107,.10);
+    --ok:#1f5138; --warn:#7a5a10; --bad:#8a2f22;
+    --ui:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei","Source Han Sans SC",system-ui,sans-serif;
+    --serif:"Songti SC","Noto Serif SC",SimSun,"Times New Roman",serif;
+    --mono:"SF Mono",ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--ui);font-size:13px;color:var(--ink);background:var(--panel);
+    -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
+
+  /* ── 版本标签条 ─────────────────────────── */
+  .vstrip{display:flex;align-items:center;gap:8px;height:26px;padding:0 20px;background:#f2f2f0;
+    border-bottom:1px solid var(--hair);font-size:11px;color:var(--ink-3)}
+  .vstrip b{color:var(--ink);font-weight:600}
+  .vstrip .d{width:1px;height:10px;background:var(--hair-2)}
+  .vstrip .tag{border:1px solid var(--hair-2);border-radius:2px;padding:0 5px;font-size:10px;color:var(--ink-2)}
+
+  /* ── 顶栏 ───────────────────────────────── */
+  .bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:0;height:44px;
+    padding:0 16px;background:var(--bar);border-bottom:1px solid var(--hair)}
+  .mark{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;letter-spacing:.01em;padding-right:16px}
+  .mark em{width:9px;height:9px;border:1.5px solid var(--ink);display:inline-block;position:relative;font-style:normal}
+  .mark em::after{content:"";position:absolute;inset:2px 2px auto auto;width:3px;height:3px;background:var(--ink)}
+  .bar .sep{width:1px;height:22px;background:var(--hair)}
+  .crumb{display:flex;align-items:center;gap:7px;padding-left:16px;font-size:12.5px;color:var(--ink-2)}
+  .crumb .cur{color:var(--ink);font-weight:500}
+  .crumb .st{font-size:11px;color:var(--ink-3)}
+  .bar .grow{flex:1}
+  .tbtn{height:28px;padding:0 11px;border:1px solid transparent;border-radius:3px;background:transparent;
+    font-family:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;
+    transition:background-color .15s,color .15s,border-color .15s}
+  .tbtn:hover{background:#f0f0ee;color:var(--ink)}
+  .tbtn:active{background:#e8e8e5}
+  .tbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .tbtn.divided{border-left:1px solid var(--hair);border-radius:0 3px 3px 0;margin-left:2px;padding-left:13px}
+  .tbtn.solid{background:var(--ink);color:#fdfdfc;font-weight:500;border-color:var(--ink)}
+  .tbtn.solid:hover{background:#2e2e2b;color:#fff}
+  .tbtn.solid kbd{font-family:var(--mono);font-size:10px;border:1px solid rgba(255,255,255,.35);
+    border-radius:2px;padding:0 3px;margin-left:7px;opacity:.85}
+
+  /* ── 主区：参数 + 计图纸面 ───────────────── */
+  .work{display:grid;grid-template-columns:38fr 62fr;height:calc(100vh - 70px);min-height:640px}
+  .side{display:flex;flex-direction:column;min-width:0;background:var(--panel);border-right:1px solid var(--hair)}
+
+  .side-head{padding:12px 16px 0}
+  .side-head .lbl{font-size:11px;color:var(--ink-3);letter-spacing:.02em}
+  .tplrow{display:flex;align-items:baseline;gap:8px;margin-top:5px}
+  .tplrow .nm{font-size:14px;font-weight:600}
+  .tplrow .fn{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .tplrow .sw-t{margin-left:auto;font-size:11px;color:var(--accent);cursor:pointer;border-bottom:1px solid transparent}
+  .tplrow .sw-t:hover{border-bottom-color:var(--accent)}
+  .modes{display:flex;gap:12px;margin:12px 0 0;border-bottom:1px solid var(--hair)}
+  .modes button{border:0;background:none;font-family:inherit;font-size:12.5px;color:var(--ink-3);
+    padding:0 0 8px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+  .modes button[aria-pressed="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+  .modes button:hover{color:var(--ink)}
+  .modes button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .pscroll{flex:1;overflow-y:auto;padding:0 16px 16px;scrollbar-width:thin;scrollbar-color:var(--hair-2) transparent}
+  .pscroll::-webkit-scrollbar{width:9px}
+  .pscroll::-webkit-scrollbar-thumb{background:var(--hair-2);border-radius:5px;border:2px solid transparent;background-clip:content-box}
+
+  .gh{display:flex;align-items:baseline;gap:8px;margin:20px 0 4px;padding-bottom:8px;border-bottom:1px solid var(--hair-2)}
+  .gh h3{margin:0;font-size:12px;font-weight:600;letter-spacing:.04em}
+  .gh .n{font-size:10.5px;color:var(--ink-4);font-family:var(--mono)}
+  .gh .grow{flex:1}
+  .gh .hint{font-size:10.5px;color:var(--ink-4)}
+
+  /* 紧凑表单行：标签左、值右、单位为后缀；同类参数左右并排 */
+  .drow{display:grid;grid-template-columns:1fr 1fr}
+  .drow.one{grid-template-columns:1fr}
+  .cell{display:flex;align-items:center;gap:8px;height:32px;min-width:0;border-bottom:1px solid var(--hair-3)}
+  .drow .cell:first-child.pr{padding-right:16px}
+  .drow .cell:last-child.pl{padding-left:16px}
+  .cell .k{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cell .k em{font-style:normal;color:var(--ink-3);font-size:11px}
+  .cell .v{margin-left:auto;display:flex;align-items:baseline;gap:5px;min-width:0}
+  .cell input{width:62px;border:0;border-bottom:1px solid transparent;background:transparent;
+    font-family:inherit;font-size:12.5px;color:var(--ink);text-align:right;padding:1px 0;
+    transition:border-color .15s;font-variant-numeric:tabular-nums}
+  .cell input:hover{border-bottom-color:var(--hair-2)}
+  .cell input:focus{outline:none;border-bottom:1.5px solid var(--accent)}
+  .cell .u{font-size:10.5px;color:var(--ink-3);width:32px;flex:0 0 auto}
+  .cell .u.wide{width:46px}
+  .cell.sel{cursor:pointer}
+  .cell.sel .val{font-size:12.5px;border-bottom:1px dashed var(--hair-2);padding-bottom:1px}
+  .cell.sel:hover .val{color:var(--accent);border-bottom-color:var(--accent)}
+  .cell .caret{font-size:8px;color:var(--ink-3)}
+  .cell.derived input{color:var(--ink-3)}
+  .cell.derived .v{flex:1}
+  .cell.derived input{width:100%;font-size:11.5px}
+
+  .switch{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--hair-3)}
+  .switch .txt{font-size:12px;color:var(--ink-2)}
+  .switch .txt small{display:block;font-size:10.5px;color:var(--ink-4);margin-top:2px}
+  .switch .grow{flex:1}
+  .tg{width:30px;height:16px;border-radius:8px;border:1px solid var(--hair-2);background:#fff;position:relative;
+    cursor:pointer;flex:0 0 auto;padding:0;transition:background-color .16s,border-color .16s}
+  .tg::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;
+    background:var(--ink-4);transition:transform .16s,background-color .16s}
+  .tg[aria-checked="true"]{background:var(--ink);border-color:var(--ink)}
+  .tg[aria-checked="true"]::after{transform:translateX(14px);background:#fff}
+  .tg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .side-foot{display:flex;align-items:center;gap:12px;padding:8px 16px;border-top:1px solid var(--hair);background:#f4f4f2}
+  .side-foot .m{font-size:10.5px;color:var(--ink-4);font-family:var(--mono)}
+  .side-foot .grow{flex:1}
+  .btn{height:27px;padding:0 12px;border:1px solid var(--hair-2);border-radius:3px;background:#fff;
+    font-family:inherit;font-size:12px;color:var(--ink);cursor:pointer;transition:background-color .15s,border-color .15s}
+  .btn:hover{background:#f2f2f0;border-color:var(--ink-4)}
+  .btn:active{background:#eaeae7}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .btn.solid{background:var(--ink);border-color:var(--ink);color:#fdfdfc}
+  .btn.solid:hover{background:#2e2e2b}
+
+  /* ── 右侧：纸面（出版级排版） ────────────── */
+  .docarea{display:flex;flex-direction:column;min-width:0;background:var(--desk)}
+  .docbar{display:flex;align-items:center;gap:8px;height:36px;padding:0 16px;background:#f4f4f2;border-bottom:1px solid var(--hair)}
+  .docbar .t{font-size:12px;color:var(--ink-2);font-weight:500}
+  .docbar .s{font-size:11px;color:var(--ink-4)}
+  .docbar .grow{flex:1}
+  .docbar .z{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .docscroll{flex:1;overflow-y:auto;padding:24px 24px 36px;scrollbar-width:thin;scrollbar-color:var(--hair-2) transparent}
+  .docscroll::-webkit-scrollbar{width:10px}
+  .docscroll::-webkit-scrollbar-thumb{background:#cdcdc7;border-radius:5px;border:3px solid transparent;background-clip:content-box}
+
+  .page{max-width:752px;margin:0 auto;background:var(--page);padding:40px 64px 32px;
+    border:1px solid var(--hair-2);box-shadow:0 1px 2px rgba(26,26,24,.06),0 12px 30px -18px rgba(26,26,24,.28);
+    font-family:var(--serif);font-size:14.5px;line-height:1.9;color:#121211}
+  .run{display:flex;align-items:baseline;font-family:var(--ui);font-size:10px;color:#7a7a7e;
+    letter-spacing:.04em;padding-bottom:8px;border-bottom:1px solid #d2d2cf;margin-bottom:24px}
+  .run .grow{flex:1}
+  .page h1{font-size:21px;font-weight:700;text-align:center;letter-spacing:.06em;margin:0 0 8px;line-height:1.5}
+  .page .sub{text-align:center;font-family:var(--ui);font-size:10.5px;color:#79797d;letter-spacing:.05em;margin-bottom:24px}
+  .page h2{font-size:15px;font-weight:700;margin:24px 0 8px;letter-spacing:.02em}
+  .page h2::after{content:"";display:block;height:1px;background:#d8d8d5;margin-top:5px}
+  .page h3{font-size:13.5px;font-weight:700;margin:16px 0 4px}
+  .page p{margin:8px 0;text-align:justify}
+  /* 三线表 */
+  .page table{width:100%;border-collapse:collapse;margin:10px 0 14px;font-size:12.5px}
+  .page th,.page td{padding:6px 9px;text-align:left;vertical-align:top;border:0}
+  .page thead th{border-top:1.5px solid #1a1a18;border-bottom:.9px solid #4a4a48;font-weight:700;letter-spacing:.02em}
+  .page tbody tr:last-child td{border-bottom:1.5px solid #1a1a18}
+  .page .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .page caption,.page .tcap{font-family:var(--ui);font-size:10.5px;color:#79797d;text-align:left;margin:2px 0 4px}
+  /* 公式：光学居中 + 右侧式号 */
+  .eq{display:grid;grid-template-columns:1fr 44px;align-items:center;margin:8px 0}
+  .eq .fx{text-align:center}
+  .eq .no{font-family:var(--ui);font-size:10.5px;color:#707074;text-align:right;white-space:nowrap}
+  .page .bullet{display:flex;gap:8px;font-size:13px;margin:4px 0}
+  .page .bullet .d{color:#9c9c9e}
+  .page .note{font-family:var(--ui);font-size:10.5px;color:#707074;line-height:1.7}
+  .page .cite{font-family:var(--ui);font-size:10.5px;color:#707074;padding-left:8px;border-left:2px solid #dcdcda;margin:4px 0 8px}
+  .page b.ok{font-weight:700}
+  .page b.no{font-weight:700;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px}
+  .page .foot{display:flex;align-items:baseline;font-family:var(--ui);font-size:10px;color:#7a7a7e;
+    margin-top:24px;padding-top:8px;border-top:1px solid #d2d2cf}
+  .page .foot .grow{flex:1}
+
+  /* ── 批量表格 ───────────────────────────── */
+  .batch{background:var(--panel);border-top:1px solid var(--hair)}
+  .bhead{display:flex;align-items:baseline;gap:8px;padding:16px 16px 12px}
+  .bhead h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.04em}
+  .bhead .n{font-size:10.5px;color:var(--ink-4);font-family:var(--mono)}
+  .bhead .grow{flex:1}
+  .bwrap{max-height:392px;overflow:auto;border-top:1px solid var(--hair-2)}
+  table.b{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  table.b thead th{position:sticky;top:0;z-index:2;background:#f2f2f0;padding:8px 12px;text-align:left;
+    font-size:11px;font-weight:600;color:var(--ink-2);border-bottom:1px solid var(--hair-2);white-space:nowrap;letter-spacing:.02em}
+  table.b tbody td{padding:4px 12px;border-bottom:1px solid var(--hair-3);color:var(--ink-2);white-space:nowrap;
+    font-variant-numeric:tabular-nums}
+  table.b tbody tr:hover{background:#f2f2f0}
+  table.b tbody tr.on{background:#eef1f3}
+  table.b tbody tr.on td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+  table.b .id{color:var(--ink);font-weight:600}
+  table.b .r{text-align:right}
+  table.b .bar{display:inline-block;width:40px;height:4px;background:#e4e4e0;vertical-align:middle;margin-right:8px;position:relative}
+  table.b .bar i{display:block;height:100%;background:var(--ink)}
+  table.b .bar i.hot{background:var(--warn)}
+  table.b .bar i.over{background:var(--bad)}
+  .ck{appearance:none;width:13px;height:13px;border:1px solid var(--ink-4);background:#fff;cursor:pointer;position:relative;border-radius:1px}
+  .ck:checked{background:var(--ink);border-color:var(--ink)}
+  .ck:checked::after{content:"";position:absolute;left:3.5px;top:0.5px;width:4px;height:7px;border:1.6px solid #fff;border-top:0;border-left:0;transform:rotate(42deg)}
+  .ck:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .verdict{font-size:12px;color:var(--ink)}
+  .verdict.bad{color:var(--bad);font-weight:600}
+
+  @media (max-width:1080px){
+    .work{grid-template-columns:1fr;height:auto}
+    .side{border-right:0;border-bottom:1px solid var(--hair)}
+    .pscroll{max-height:520px}
+    .page{padding:28px 24px}
+  }
+  /* ── 应用外壳（评审用固定视口）：三区各自滚动，批量区常驻底部 ── */
+  html,body{height:100%}
+  body{display:flex;flex-direction:column;height:100vh;min-height:0;overflow:hidden}
+  .vstrip,.topbar,.winbar,.toolbar,.bar{flex:0 0 auto}
+  .work{flex:1 1 auto;height:auto;min-height:0;overflow:hidden}
+  .params,.card,.preview,.side,.docarea,.p-scroll,.pscroll,.pv-scroll,.docscroll{min-height:0}
+  .batch,.batchwrap,.bcard{flex:0 0 auto}
+  .bwrap,.bscroll{max-height:min(27vh,252px)}
+  @media (max-width:1080px){
+    body{overflow:auto}
+    .work{height:auto;overflow:visible}
+  }
+</style>
+</head>
+<body>
+
+<div class="vstrip">
+  <b>设计稿 v3 · 精致浅色</b><span class="d"></span>
+  <span>中性灰阶 · 字重与间距建层级 · 出版级计算书排版</span><span class="d"></span>
+  <span class="tag">静态稿</span>
+  <span>参数与公式取自 examples/stair.py 与真实算例 STAIR-1；批量表 18 行为模板实跑结果（LT-08 为真实的选筋表溢出报错）</span>
+</div>
+
+<header class="bar">
+  <div class="mark"><em></em>CalcBook</div>
+  <div class="sep"></div>
+  <div class="crumb">
+    <span>某办公楼</span><span>/</span><span class="cur">楼梯梯段板.cbproj</span>
+    <span class="st">已保存 14:22</span>
+  </div>
+  <div class="grow"></div>
+  <button class="tbtn" type="button">导入模板</button>
+  <button class="tbtn" type="button">导出 HTML</button>
+  <button class="tbtn" type="button">导出 Markdown</button>
+  <button class="tbtn solid" type="button">运行批量<kbd>Ctrl ↵</kbd></button>
+</header>
+
+<div class="work">
+  <aside class="side">
+    <div class="side-head">
+      <div class="lbl">当前模板</div>
+      <div class="tplrow">
+        <span class="nm">板式楼梯计算</span>
+        <span class="fn">stair.py</span>
+        <span class="sw-t">更换模板</span>
+      </div>
+      <div class="modes" role="group" aria-label="视图">
+        <button type="button" aria-pressed="true">单页参数</button>
+        <button type="button" aria-pressed="false">批量表格</button>
+        <button type="button" aria-pressed="false">模板信息</button>
+      </div>
+    </div>
+
+    <div class="pscroll">
+      <div class="gh"><h3>几何</h3><span class="n">8 项</span><span class="grow"></span><span class="hint">逐跑输入</span></div>
+      <div class="drow one">
+        <div class="cell sel"><span class="k">支座形式</span><span class="v"><span class="val">两端弹性</span><span class="caret">▾</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">踏步宽度 <em>a</em></span><span class="v"><input value="280"><span class="u">mm</span></span></div>
+        <div class="cell pl"><span class="k">踏步高度 <em>d</em></span><span class="v"><input value="150"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">踏步数 <em>n</em></span><span class="v"><input value="5"><span class="u">步</span></span></div>
+        <div class="cell pl"><span class="k">板宽度 <em>B</em></span><span class="v"><input value="1200"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">A端折板 <em>L1</em></span><span class="v"><input value="0"><span class="u">mm</span></span></div>
+        <div class="cell pl"><span class="k">B端折板 <em>L2</em></span><span class="v"><input value="0"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">A端支座 <em>bA</em></span><span class="v"><input value="200"><span class="u">mm</span></span></div>
+        <div class="cell pl"><span class="k">B端支座 <em>bB</em></span><span class="v"><input value="200"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow one">
+        <div class="cell"><span class="k">两侧栏板(杆)线荷载 <em>g</em></span><span class="v"><input value="0.5"><span class="u wide">kN/m</span></span></div>
+      </div>
+
+      <div class="gh"><h3>材料</h3><span class="n">2 项</span><span class="grow"></span><span class="hint">可整组统一</span></div>
+      <div class="drow">
+        <div class="cell sel pr"><span class="k">混凝土等级</span><span class="v"><span class="val">C30</span><span class="caret">▾</span></span></div>
+        <div class="cell sel pl"><span class="k">纵筋级别</span><span class="v"><span class="val">HRB400</span><span class="caret">▾</span></span></div>
+      </div>
+      <div class="drow one">
+        <div class="cell derived"><span class="k">截面参数</span><span class="v"><input value="fc 14.3 · ftk 2.01 · Ec 3.0e4" readonly></span></div>
+      </div>
+
+      <div class="gh"><h3>荷载与系数</h3><span class="n">15 项</span><span class="grow"></span><span class="hint">批量时统一设置</span></div>
+      <div class="drow one">
+        <div class="cell"><span class="k">楼梯活荷载标准值 <em>q</em></span><span class="v"><input value="3.5"><span class="u wide">kN/m²</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">恒载分项 <em>γG</em></span><span class="v"><input value="1.3"><span class="u"></span></span></div>
+        <div class="cell pl"><span class="k">活载分项 <em>γQ</em></span><span class="v"><input value="1.5"><span class="u"></span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">准永久值 <em>ψq</em></span><span class="v"><input value="0.4"><span class="u"></span></span></div>
+        <div class="cell pl"><span class="k">重要性 <em>γ0</em></span><span class="v"><input value="1.0"><span class="u"></span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">踏步刚度 <em>λ</em></span><span class="v"><input value="0.2"><span class="u"></span></span></div>
+        <div class="cell pl"><span class="k">最小配筋率 <em>ρmin</em></span><span class="v"><input value="0.2"><span class="u">%</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">保护层 <em>c</em></span><span class="v"><input value="15"><span class="u">mm</span></span></div>
+        <div class="cell pl"><span class="k">面层厚 <em>t1</em></span><span class="v"><input value="30"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">面层容重 <em>r1</em></span><span class="v"><input value="22"><span class="u wide">kN/m³</span></span></div>
+        <div class="cell pl"><span class="k">抹灰厚 <em>t2</em></span><span class="v"><input value="20"><span class="u">mm</span></span></div>
+      </div>
+      <div class="drow">
+        <div class="cell pr"><span class="k">抹灰容重 <em>r2</em></span><span class="v"><input value="18"><span class="u wide">kN/m³</span></span></div>
+        <div class="cell pl"><span class="k">混凝土容重 <em>r</em></span><span class="v"><input value="25"><span class="u wide">kN/m³</span></span></div>
+      </div>
+      <div class="drow one">
+        <div class="cell derived"><span class="k">估算板厚</span><span class="v"><input value="100" readonly><span class="u">mm</span></span></div>
+      </div>
+
+      <div class="switch">
+        <span class="txt">参数变更自动重算<small>300 ms 防抖后重算，右侧文档同步刷新</small></span>
+        <span class="grow"></span>
+        <button class="tg" role="switch" aria-checked="true" aria-label="参数变更自动重算"></button>
+      </div>
+      <div class="switch">
+        <span class="txt">显示高级参数<small>批量表格默认隐藏的 11 项</small></span>
+        <span class="grow"></span>
+        <button class="tg" role="switch" aria-checked="false" aria-label="显示高级参数"></button>
+      </div>
+    </div>
+
+    <div class="side-foot">
+      <button class="btn solid" type="button">重算本项</button>
+      <span class="m">8 ms</span>
+      <span class="grow"></span>
+      <span class="m">stair.py · 4f9c…a1</span>
+    </div>
+  </aside>
+
+  <section class="docarea">
+    <div class="docbar">
+      <span class="t">计算书预览</span>
+      <span class="s">STAIR-1 · 板式楼梯计算</span>
+      <span class="grow"></span>
+      <span class="z">100%</span>
+      <button class="btn" type="button">导出当前</button>
+    </div>
+    <div class="docscroll">
+      <article class="page">
+        <div class="run"><span>楼梯计算书 · STAIR-1</span><span class="grow"></span><span>第 1 页 / 共 1 页</span></div>
+
+        <h1>楼梯计算书</h1>
+        <div class="sub">板式楼梯梯段板 · 项目编号 STAIR-1 · GB/T 50010-2010（2024 年版）</div>
+
+        <h2>一、编号</h2>
+        <table>
+          <thead><tr><th style="width:26%">项目</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>项目编号</td><td>STAIR-1</td></tr>
+            <tr><td>支座形式</td><td>两端弹性</td></tr>
+            <tr><td>计算依据</td><td>《混凝土结构设计标准》GB/T 50010-2010（2024年版）</td></tr>
+          </tbody>
+        </table>
+
+        <h2>二、基本资料</h2>
+        <p>梯段板厚度按经验公式估算：板厚 = 向上取整 10 mm[(a·n + L1 + L2)/k]，且不小于 100 mm。</p>
+        <div class="eq"><div class="fx">$$t = \max\left\{\left\lceil \dfrac{a n + L_1 + L_2}{10\,k} \right\rceil \times 10,\ 100\right\}$$</div><div class="no">(2-1)</div></div>
+        <div class="eq"><div class="fx">$$t = \max\left\{\left\lceil \dfrac{280 \times 5 + 0 + 0}{10 \times 28} \right\rceil \times 10,\ 100\right\} = 100\ \mathrm{mm}$$</div><div class="no">(2-2)</div></div>
+        <table>
+          <thead><tr><th style="width:25%">参数</th><th class="num" style="width:19%">取值</th><th style="width:34%;padding-left:18px">参数</th><th class="num" style="width:22%">取值</th></tr></thead>
+          <tbody>
+            <tr><td>支座形式</td><td class="num">两端弹性</td><td>结构重要性系数 γ0</td><td class="num">1</td></tr>
+            <tr><td>踏步宽度 a</td><td class="num">280 mm</td><td>恒载分项系数 γG</td><td class="num">1.3</td></tr>
+            <tr><td>踏步高度 d</td><td class="num">150 mm</td><td>活载分项系数 γQ</td><td class="num">1.5</td></tr>
+            <tr><td>踏步数 n</td><td class="num">5</td><td>活载准永久值系数 ψq</td><td class="num">0.4</td></tr>
+            <tr><td>梯段板宽度 B</td><td class="num">1200 mm</td><td>最小配筋率 ρmin</td><td class="num">0.2%</td></tr>
+            <tr><td>栏板(杆)线荷载 g</td><td class="num">0.5 kN/m</td><td>保护层厚度 c</td><td class="num">15 mm</td></tr>
+            <tr><td>活荷载标准值 q</td><td class="num">3.5 kN/m²</td><td>混凝土 / 纵筋</td><td class="num">C30 / HRB400</td></tr>
+          </tbody>
+        </table>
+
+        <h2>三、梯段板荷载计算</h2>
+        <p>荷载均按水平投影面每平方米计。梯段板倾斜角：</p>
+        <div class="eq"><div class="fx">$$\alpha = \arctan \dfrac{d}{a} = \arctan \dfrac{150}{280} = 0.4918\ \mathrm{rad}\quad(\cos\alpha = 0.8815)$$</div><div class="no">(3-1)</div></div>
+        <div class="eq"><div class="fx">$$g_{k1} = \dfrac{r \cdot d}{2} = \dfrac{25 \times 150}{2 \times 1000} = 1.875\ \mathrm{kN/m^2}$$</div><div class="no">(3-2)</div></div>
+        <div class="eq"><div class="fx">$$g_{k2} = \dfrac{t \cdot r}{1000\cos\alpha} = \dfrac{100 \times 25}{1000 \times 0.8815} = 2.836\ \mathrm{kN/m^2}$$</div><div class="no">(3-3)</div></div>
+        <div class="eq"><div class="fx">$$g_k = 1.875 + 2.836 + 1.014 + 0.408 + 0.473 = 6.606\ \mathrm{kN/m^2}$$</div><div class="no">(3-4)</div></div>
+        <div class="eq"><div class="fx">$$l_0 = \min\left\{ L_n + \dfrac{b_A + b_B}{2},\ 1.05 L_n \right\} = \min\left\{ 1.4 + 0.2,\ 1.05 \times 1.4 \right\} = 1.47\ \mathrm{m}$$</div><div class="no">(3-5)</div></div>
+
+        <h2>四、荷载组合</h2>
+        <div class="eq"><div class="fx">$$p_u = \gamma_G g_k + \gamma_Q q_k = 1.3 \times 6.606 + 1.5 \times 3.5 = 13.838\ \mathrm{kN/m^2}$$</div><div class="no">(4-1)</div></div>
+        <div class="eq"><div class="fx">$$p_{qp} = g_k + \psi_q q_k = 6.606 + 0.4 \times 3.5 = 8.006\ \mathrm{kN/m^2}$$</div><div class="no">(4-2)</div></div>
+
+        <h2>五、内力计算</h2>
+        <p>按支座形式取弯矩系数（每 m 板宽）：两端弹性——支座 1/16、跨中 1/10。</p>
+        <div class="eq"><div class="fx">$$M_A = -\dfrac{13.838 \times 1.47^2}{16} = -1.869\ \mathrm{kN \cdot m/m}$$</div><div class="no">(5-1)</div></div>
+        <div class="tcap">表 5-1　各截面弯矩</div>
+        <table>
+          <thead><tr><th>截面</th><th class="num">弯矩系数 1/ζ</th><th class="num">M（基本组合）</th><th class="num">M（准永久组合）</th></tr></thead>
+          <tbody>
+            <tr><td>A端支座</td><td class="num">1/16</td><td class="num">-1.869 kN·m/m</td><td class="num">-1.081 kN·m/m</td></tr>
+            <tr><td>跨中</td><td class="num">1/10</td><td class="num">2.990 kN·m/m</td><td class="num">1.730 kN·m/m</td></tr>
+            <tr><td>B端支座</td><td class="num">1/16</td><td class="num">-1.869 kN·m/m</td><td class="num">-1.081 kN·m/m</td></tr>
+          </tbody>
+        </table>
+
+        <h2>六、配筋计算</h2>
+        <p>按单筋矩形截面（b = 1000 mm）计算，截面有效高度按选筋表最大直径取：</p>
+        <div class="eq"><div class="fx">$$h_0 = t - c - d_{\max}/2 = 100 - 15 - 16/2 = 77\ \mathrm{mm}$$</div><div class="no">(6-1)</div></div>
+        <p>最小配筋面积 $A_{s,\min} = \rho_{\min} b h = 0.2\% \times 1000 \times 100 = 200\ \mathrm{mm^2}$。</p>
+        <div class="eq"><div class="fx">$$\alpha_s = \dfrac{1868847}{1 \times 14.3 \times 1000 \times 77^2} = 0.0220,\qquad \xi = 1 - \sqrt{1 - 2\alpha_s} = 0.0223$$</div><div class="no">(6-2)</div></div>
+        <p>A端支座选用 $\Phi8@200$（$A_s = 251.3\ \mathrm{mm^2}$）。</p>
+        <div class="bullet"><span class="d">—</span><span>最小配筋 $A_s \ge \rho_{\min} b h$：251.3 ≥ 200 mm²，比值 0.7958 —— <b class="ok">满足</b></span></div>
+        <div class="cite">依据：GB/T 50010-2010（2024 年版）第 8.5.1 条</div>
+
+        <h2>七、裂缝与挠度验算</h2>
+        <p>按准永久组合并考虑长期作用影响，最大裂缝宽度限值 0.3 mm；跨中长期挠度限值 l₀/200。</p>
+        <div class="eq"><div class="fx">$$\omega_{\max} = \alpha_{cr} \psi \dfrac{\sigma_s}{E_s}\left( 1.9 c_s + 0.08 \dfrac{d_{eq}}{\rho_{te}} \right) = 1.9 \times 0.200 \times \dfrac{97.7}{200000} \times \left( 1.9 \times 20 + 0.08 \times \dfrac{8}{0.0100} \right) = 0.019\ \mathrm{mm}$$</div><div class="no">(7-1)</div></div>
+        <div class="bullet"><span class="d">—</span><span>跨中裂缝宽度 $\omega_{\max} \le [\omega] = 0.3$：0.01893 ≤ 0.3 mm，比值 0.0631 —— <b class="ok">满足</b></span></div>
+        <div class="eq"><div class="fx">$$h_0' = h_0 + \lambda\, d\cos\alpha = 81 + 0.2 \times 150 \times 0.8815 = 107.4\ \mathrm{mm},\qquad f = \eta\, p_{qp} l_0^4 \times 10^{12} / B_l = 0.56\ \mathrm{mm}$$</div><div class="no">(7-2)</div></div>
+        <div class="bullet"><span class="d">—</span><span>跨中挠度 $f \le [f] = l_0/200$：0.5578 ≤ 7.35 mm，比值 0.07589 —— <b class="ok">满足</b></span></div>
+        <div class="cite">依据：GB/T 50010-2010（2024 年版）第 7.1.2 条、第 7.2.2 条</div>
+        <h2>八、验算结论汇总</h2>
+        <div class="tcap">表 8-1　验算结论</div>
+        <table>
+          <thead><tr><th>验算项</th><th class="num">数值</th><th class="num">比值</th><th>结论</th></tr></thead>
+          <tbody>
+            <tr><td>A端支座受压区高度</td><td class="num">0.02229 ≤ 0.518</td><td class="num">0.0430</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>A端支座最小配筋</td><td class="num">251.3 ≥ 200 mm²</td><td class="num">0.7958</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>跨中受压区高度</td><td class="num">0.03591 ≤ 0.518</td><td class="num">0.0693</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>跨中最小配筋</td><td class="num">251.3 ≥ 200 mm²</td><td class="num">0.7958</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>B端支座受压区高度</td><td class="num">0.02229 ≤ 0.518</td><td class="num">0.0430</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>B端支座最小配筋</td><td class="num">251.3 ≥ 200 mm²</td><td class="num">0.7958</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>A端支座裂缝宽度</td><td class="num">0.01183 ≤ 0.3 mm</td><td class="num">0.0394</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>跨中裂缝宽度</td><td class="num">0.01893 ≤ 0.3 mm</td><td class="num">0.0631</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>B端支座裂缝宽度</td><td class="num">0.01183 ≤ 0.3 mm</td><td class="num">0.0394</td><td><b class="ok">满足</b></td></tr>
+            <tr><td>跨中挠度</td><td class="num">0.5578 ≤ 7.35 mm</td><td class="num">0.0759</td><td><b class="ok">满足</b></td></tr>
+          </tbody>
+        </table>
+        <p class="note">注：γ0 = 1 仅列出；荷载组合与准永久组合分别按 GB/T 50010-2010 与 GB 50009-2012 取用。</p>
+
+        <div class="foot"><span>编制　结构组　　校核　—　　输出　14:22</span><span class="grow"></span><span>第 1 页 / 共 1 页</span></div>
+      </article>
+    </div>
+  </section>
+</div>
+
+<section id="batch" class="batch">
+  <div class="bhead">
+    <h2>批量表格</h2>
+    <span class="n">18 个构件 · 板式楼梯计算</span>
+    <span class="grow"></span>
+    <button class="btn" type="button">列显隐</button>
+    <button class="btn" type="button">统一设置</button>
+    <button class="btn solid" type="button">运行全部 18 项</button>
+  </div>
+  <div class="bwrap">
+    <table class="b">
+      <thead>
+        <tr>
+          <th style="width:32px"><input class="ck" type="checkbox" aria-label="全选"></th>
+          <th>名称</th><th>支座形式</th><th class="r">a</th><th class="r">d</th><th class="r">n</th>
+          <th class="r">B</th><th class="r">q</th><th class="r">板厚</th><th>跨中配筋</th><th class="r">最大比值</th><th>结论</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="on"><td><input class="ck" type="checkbox" checked aria-label="选择 STAIR-1"></td><td class="id">STAIR-1</td><td>两端弹性</td><td class="r">280</td><td class="r">150</td><td class="r">5</td><td class="r">1200</td><td class="r">3.5</td><td class="r">100</td><td>Φ8@200</td><td class="r"><span class="bar"><i style="width:79.6%"></i></span>0.7958</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 STAIR-2"></td><td class="id">STAIR-2</td><td>下铰上弹</td><td class="r">260</td><td class="r">166.7</td><td class="r">16</td><td class="r">1200</td><td class="r">3.5</td><td class="r">170</td><td>Φ12@125</td><td class="r"><span class="bar"><i style="width:86.6%"></i></span>0.8658</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-01"></td><td class="id">LT-01</td><td>两端弹性</td><td class="r">280</td><td class="r">162.5</td><td class="r">18</td><td class="r">1300</td><td class="r">3.5</td><td class="r">180</td><td>Φ12@125</td><td class="r"><span class="bar"><i style="width:78.2%"></i></span>0.7824</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-02"></td><td class="id">LT-02</td><td>下铰上弹</td><td class="r">280</td><td class="r">162.5</td><td class="r">18</td><td class="r">1300</td><td class="r">3.5</td><td class="r">210</td><td>Φ12@100</td><td class="r"><span class="bar"><i style="width:83.6%"></i></span>0.8356</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-03"></td><td class="id">LT-03</td><td>两端弹性</td><td class="r">300</td><td class="r">150</td><td class="r">18</td><td class="r">1400</td><td class="r">3.5</td><td class="r">200</td><td>Φ12@100</td><td class="r"><span class="bar"><i style="width:70.7%"></i></span>0.7074</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-04"></td><td class="id">LT-04</td><td>两端弹性</td><td class="r">260</td><td class="r">175</td><td class="r">18</td><td class="r">1200</td><td class="r">3.5</td><td class="r">170</td><td>Φ12@125</td><td class="r"><span class="bar"><i style="width:72.2%"></i></span>0.7224</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-05"></td><td class="id">LT-05</td><td>下铰上弹</td><td class="r">260</td><td class="r">155</td><td class="r">22</td><td class="r">1200</td><td class="r">2.5</td><td class="r">230</td><td>Φ12@100</td><td class="r"><span class="bar"><i class="hot" style="width:91.5%"></i></span>0.9151</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-06"></td><td class="id">LT-06</td><td>两端弹性</td><td class="r">300</td><td class="r">166.7</td><td class="r">18</td><td class="r">1500</td><td class="r">3.5</td><td class="r">200</td><td>Φ12@100</td><td class="r"><span class="bar"><i style="width:63.7%"></i></span>0.6366</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-07"></td><td class="id">LT-07</td><td>两端弹性</td><td class="r">280</td><td class="r">175</td><td class="r">20</td><td class="r">1350</td><td class="r">4.0</td><td class="r">200</td><td>Φ12@100</td><td class="r"><span class="bar"><i style="width:80.5%"></i></span>0.8047</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" aria-label="选择 LT-08"></td><td class="id">LT-08</td><td>下铰上弹</td><td class="r">250</td><td class="r">160</td><td class="r">24</td><td class="r">1100</td><td class="r">3.5</td><td class="r">240</td><td>—</td><td class="r">—</td><td class="verdict bad">计算出错</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-09"></td><td class="id">LT-09</td><td>两端弹性</td><td class="r">320</td><td class="r">160</td><td class="r">16</td><td class="r">1600</td><td class="r">3.5</td><td class="r">190</td><td>Φ12@125</td><td class="r"><span class="bar"><i style="width:72.6%"></i></span>0.7257</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-10"></td><td class="id">LT-10</td><td>两端弹性</td><td class="r">280</td><td class="r">145</td><td class="r">20</td><td class="r">1250</td><td class="r">3.5</td><td class="r">200</td><td>Φ12@100</td><td class="r"><span class="bar"><i style="width:79.8%"></i></span>0.7982</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-11"></td><td class="id">LT-11</td><td>两端弹性</td><td class="r">280</td><td class="r">160</td><td class="r">12</td><td class="r">1200</td><td class="r">3.5</td><td class="r">120</td><td>Φ10@125</td><td class="r"><span class="bar"><i style="width:61.1%"></i></span>0.6112</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-12"></td><td class="id">LT-12</td><td>两端弹性</td><td class="r">260</td><td class="r">150</td><td class="r">14</td><td class="r">1200</td><td class="r">3.5</td><td class="r">130</td><td>Φ10@125</td><td class="r"><span class="bar"><i style="width:67.5%"></i></span>0.6755</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-13"></td><td class="id">LT-13</td><td>两端弹性</td><td class="r">320</td><td class="r">150</td><td class="r">12</td><td class="r">1500</td><td class="r">3.5</td><td class="r">140</td><td>Φ10@125</td><td class="r"><span class="bar"><i style="width:71.3%"></i></span>0.7130</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-14"></td><td class="id">LT-14</td><td>两端弹性</td><td class="r">300</td><td class="r">150</td><td class="r">14</td><td class="r">1400</td><td class="r">4.0</td><td class="r">150</td><td>Φ12@150</td><td class="r"><span class="bar"><i style="width:64.1%"></i></span>0.6408</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-15"></td><td class="id">LT-15</td><td>两端弹性</td><td class="r">280</td><td class="r">155</td><td class="r">14</td><td class="r">1250</td><td class="r">3.5</td><td class="r">140</td><td>Φ12@150</td><td class="r"><span class="bar"><i style="width:69.6%"></i></span>0.6963</td><td class="verdict">满足</td></tr>
+          <tr><td><input class="ck" type="checkbox" checked aria-label="选择 LT-16"></td><td class="id">LT-16</td><td>下铰上弹</td><td class="r">300</td><td class="r">166.7</td><td class="r">12</td><td class="r">1400</td><td class="r">3.5</td><td class="r">150</td><td>Φ12@150</td><td class="r"><span class="bar"><i style="width:89.5%"></i></span>0.8952</td><td class="verdict">满足</td></tr>
+        </tbody>
+    </table>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+<script>
+  document.querySelectorAll('.tg').forEach(function (t) {
+    t.addEventListener('click', function () {
+      t.setAttribute('aria-checked', t.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    });
+  });
+  document.querySelectorAll('.modes button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.modes button').forEach(function (o) { o.setAttribute('aria-pressed', 'false'); });
+      b.setAttribute('aria-pressed', 'true');
+    });
+  });
+  document.querySelectorAll('table.b tbody tr').forEach(function (tr) {
+    tr.addEventListener('click', function (e) {
+      if (e.target.tagName === 'INPUT') return;
+      document.querySelectorAll('table.b tbody tr').forEach(function (o) { o.classList.remove('on'); });
+      tr.classList.add('on');
+    });
+  });
+</script>
+</body>
+</html>
