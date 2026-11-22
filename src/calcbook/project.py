@@ -3,6 +3,8 @@
 数据模型（契约第 5 节）：一个工程 = 多个「计算项」的集合；
 每项 = {id, 名称, 模板id, 模板hash, 参数JSON}。
 views 按模板 id 记录批量视图的列显隐配置；依赖模块 hash 位预留（deps）。
+
+磁盘格式带 format_version；旧 Web 落盘的文件没有该字段，读取时按历史 v1 处理。
 """
 
 from __future__ import annotations
@@ -86,7 +88,8 @@ def load_project(path: str | Path) -> Project:
         raise ValueError(f"工程文件不是有效的 JSON（{path.name}）：{e}") from e
     if not isinstance(doc, dict):
         raise ValueError(f"工程文件结构异常（{path.name}）：顶层应为 JSON 对象")
-    version = doc.get("format_version")
+    # 旧 Web 保存的工程省略了版本字段，使用 v1 的数据结构。
+    version = doc.get("format_version", 1)
     if version != FORMAT_VERSION:
         raise ValueError(f"工程文件版本不支持：{version}（当前支持 {FORMAT_VERSION}）")
     items = []

@@ -1,3 +1,2 @@
 recursive-include src/calcbook/web *
 recursive-include src/calcbook/vendor *
-include src/calcbook/icon.ico

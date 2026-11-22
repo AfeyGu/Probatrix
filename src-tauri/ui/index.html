@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<!--
+  CalcBook 桌面宿主的本机启动/错误页（只由宿主载入，随后被导航到 http://127.0.0.1:<port>/）。
+  无外部依赖、无 Tauri IPC：失败原因由宿主调用 __calcbookFail 投递。
+  外观沿用 docs/ui-design.md 的令牌（画布 + Mica 玻璃卡 + 三档半径），两处数值保持一致。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CalcBook</title>
+  <script>
+    // 宿主在启动失败时调用。定义在 <head> 里，尽量在宿主 eval 之前就存在；
+    // 若调用时 DOM 还没解析完，先记住参数，等 DOMContentLoaded 再应用。
+    (function () {
+      var pending = null;
+
+      function apply(info) {
+        var messageNode = document.getElementById('message');
+        if (!messageNode) {
+          pending = info;
+          return;
+        }
+        messageNode.textContent = (info && info.message) || '未知错误。';
+        document.getElementById('log-path').textContent =
+          (info && info.logPath) || '（未取到日志路径）';
+        document.body.classList.add('failed');
+        document.title = 'CalcBook — 启动失败';
+      }
+
+      window.__calcbookFail = apply;
+      document.addEventListener('DOMContentLoaded', function () {
+        if (pending) apply(pending);
+      });
+    })();
+  </script>
+  <style>
+    :root {
+      --r-card: 24px;
+      --ink: #12161d;
+      --ink-2: #4e5a6b;
+      --ink-3: #7b8798;
+      --canvas: #e8edf5;
+      --accent: #1a6fd4;
+      --bad: #b42318;
+      --l1-bg: rgba(255, 255, 255, .56);
+      --l1-hi: rgba(255, 255, 255, .95);
+      --l1-lo: rgba(15, 34, 64, .10);
+      --sh-near: 0 2px 8px rgba(30, 58, 92, .18);
+      --sh-far: 0 12px 32px rgba(30, 58, 92, .26);
+      --f-text: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+      --f-num: "Cascadia Mono", "Segoe UI Variable Text", ui-monospace, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: var(--f-text);
+      color: var(--ink);
+      background:
+        radial-gradient(900px 620px at 12% 0%, rgba(110, 155, 232, .52), transparent 70%),
+        radial-gradient(820px 560px at 92% 6%, rgba(190, 164, 238, .44), transparent 72%),
+        radial-gradient(1100px 620px at 50% 100%, rgba(126, 196, 222, .38), transparent 70%),
+        var(--canvas);
+    }
+
+    .card {
+      width: min(440px, calc(100vw - 64px));
+      padding: 32px 34px 28px;
+      border-radius: var(--r-card);
+      corner-shape: squircle;
+      background: var(--l1-bg);
+      border: 1px solid rgba(255, 255, 255, .9);
+      backdrop-filter: blur(40px) saturate(1.9);
+      box-shadow: inset 0 1px 0 var(--l1-hi), inset 0 -1px 0 var(--l1-lo), var(--sh-near), var(--sh-far);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    .brand::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(26, 111, 212, .12);
+    }
+
+    h1 {
+      margin: 18px 0 8px;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    p.status {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--ink-2);
+    }
+
+    .spinner {
+      margin-top: 22px;
+      width: 100%;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(15, 34, 64, .08);
+      overflow: hidden;
+    }
+
+    .spinner::after {
+      content: "";
+      display: block;
+      width: 38%;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+      animation: sweep 1.5s cubic-bezier(.34, 1.2, .64, 1) infinite;
+    }
+
+    @keyframes sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+
+    .error { display: none; }
+
+    body.failed .error { display: block; }
+    body.failed .waiting { display: none; }
+    body.failed h1 { color: var(--bad); }
+
+    pre.message {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      padding: 12px 14px;
+      border-radius: 8px;
+      corner-shape: squircle;
+      background: rgba(180, 35, 24, .06);
+      border: 1px solid rgba(180, 35, 24, .16);
+      font-family: var(--f-num);
+      font-size: 12.5px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #6d1a12;
+    }
+
+    .log-path {
+      margin: 14px 0 0;
+      font-size: 12.5px;
+      line-height: 1.7;
+      word-break: break-all;
+      color: var(--ink-2);
+    }
+
+    .log-path code {
+      font-family: var(--f-num);
+      color: var(--ink);
+    }
+
+    .hint {
+      margin: 10px 0 0;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--ink-3);
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">CalcBook</div>
+
+    <div class="waiting">
+      <h1>正在启动本地计算服务</h1>
+      <p class="status">首次启动需要几秒，请稍候。</p>
+      <div class="spinner"></div>
+    </div>
+
+    <div class="error">
+      <h1>无法启动 CalcBook</h1>
+      <pre class="message" id="message"></pre>
+      <p class="log-path">日志：<code id="log-path"></code></p>
+      <p class="hint">关闭本窗口后重新打开即可重试；若反复出现，请把日志文件发给维护者。</p>
+    </div>
+  </main>
+</body>
+</html>

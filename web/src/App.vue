@@ -1,13 +1,35 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { store, refreshTemplates, selectTemplate, setView, addItem,
          saveProjectAs, openProjectFile, exportProjectHtml, exportProjectMd,
          newBlankProject, touch, setOfflineExport, setTheme, fsPickSupported } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
+import WindowControls from './components/WindowControls.vue'
 
 const fileInput = ref(null)
+const desktopWindow = shallowRef(null)
+const windowControls = ref(null)
+
+onMounted(async () => {
+  try {
+    const windowApi = window.__TAURI__?.window?.getCurrentWindow()
+    if (!windowApi) return
+    await windowApi.isMaximized()
+    desktopWindow.value = windowApi
+    await nextTick()
+    // 保证按钮已挂载，启动和授权失败时仍可用系统按钮关窗。
+    if (!windowControls.value) {
+      desktopWindow.value = null
+      return
+    }
+    await windowApi.setDecorations(false)
+  } catch (error) {
+    desktopWindow.value = null
+    console.warn('使用系统标题栏', error)
+  }
+})
 
 const groupedItems = computed(() => {
   const groups = []
@@ -101,8 +123,25 @@ function themeLabel() { return THEME_NAMES[store.pref.theme] || store.pref.theme
 // 当前服务地址（桌面窗口 / 浏览器一致；端口被占用递加后仍准确）
 const serverUrl = window.location.origin
 
+async function onSelectTemplate(templateId) {
+  try {
+    return await selectTemplate(templateId)
+  } catch (error) {
+    ElMessage.error(`读取模板失败：${error.message}`)
+    return false
+  }
+}
+
+async function onAddItem() {
+  try {
+    await addItem(store.currentTemplateId)
+  } catch (error) {
+    ElMessage.error(`添加计算项失败：${error.message}`)
+  }
+}
+
 async function onPickItem(group, item) {
-  if (group.id !== '?') await selectTemplate(group.id)
+  if (group.id !== '?' && !(await onSelectTemplate(group.id))) return
   store.activeItemId = item.id
   setView('single')
 }
@@ -114,9 +153,10 @@ function ratioOf(item) {
 
 <template>
   <el-container class="root">
-    <el-header height="48px" class="header">
+    <el-header height="48px" class="header" :class="{ 'desktop-header': desktopWindow }"
+               :data-tauri-drag-region="desktopWindow ? '' : undefined">
       <div class="hgroup">
-        <span class="brand">CalcBook</span>
+        <span class="brand" :data-tauri-drag-region="desktopWindow ? '' : undefined">CalcBook</span>
         <el-input v-model="store.project.name" class="proj-name" placeholder="工程名"
                   @change="touch" />
       </div>
@@ -128,21 +168,22 @@ function ratioOf(item) {
       </div>
       <div class="hgroup">
         <el-select v-model="store.currentTemplateId" class="tpl-select"
-                   placeholder="选择模板" @change="selectTemplate">
+                   placeholder="选择模板" @change="onSelectTemplate">
           <el-option v-for="t in store.templates" :key="t.template_id"
                      :value="t.template_id"
                      :label="t.name + (t.missing_deps && t.missing_deps.length ? '（缺依赖：' + t.missing_deps.join('、') + '）' : '')" />
         </el-select>
-        <el-radio-group v-model="store.viewMode" @change="setView">
+        <el-radio-group v-model="store.viewMode" class="view-switch" aria-label="计算视图"
+                        :data-mode="store.viewMode" @change="setView">
           <el-radio-button value="single">单项</el-radio-button>
           <el-radio-button value="batch">批量</el-radio-button>
         </el-radio-group>
       </div>
-      <div class="header-spacer" />
-      <span class="server-url" :title="serverUrl">{{ serverUrl }}</span>
+      <div class="header-spacer" :data-tauri-drag-region="desktopWindow ? '' : undefined" />
+      <span v-if="!desktopWindow" class="server-url" :title="serverUrl">{{ serverUrl }}</span>
       <div class="hgroup">
         <el-dropdown @command="onTheme">
-          <el-button>主题：{{ themeLabel() }} ▾</el-button>
+          <el-button :aria-label="`切换主题，当前${themeLabel()}`"><span class="theme-prefix">主题：</span>{{ themeLabel() }} ▾</el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-for="(name, key) in THEME_NAMES" :key="key" :command="key">
@@ -167,10 +208,11 @@ function ratioOf(item) {
           </template>
         </el-dropdown>
       </div>
+      <WindowControls v-if="desktopWindow" ref="windowControls" :window-api="desktopWindow" />
     </el-header>
 
     <el-container class="body">
-      <el-aside width="270px" class="aside">
+      <el-aside width="clamp(200px, 22vw, 270px)" class="aside glass-panel">
         <el-alert v-if="hasLoaderErrors()" type="error" :closable="false" class="loader-err">
           <template #title>
             模板加载错误（{{ store.loaderErrors.length }} 个文件）
@@ -182,7 +224,7 @@ function ratioOf(item) {
           <span>计算项</span>
           <el-button size="small"
                      :disabled="!store.currentTemplateId"
-                     @click="addItem(store.currentTemplateId)">
+                     @click="onAddItem">
             ＋ 加一项
           </el-button>
         </div>
@@ -255,8 +297,9 @@ function ratioOf(item) {
 
   /* 三档半径（全站只此三档，禁止第四档） */
   --cb-r-card: 24px;
-  --cb-r-ctl: 8px;
+  --cb-r-ctl: 12px;
   --cb-r-pill: 999px;
+  --cb-panel-gap: 12px;
 
   /* 字体三级：Display 标题 / Text 正文 / Num 数值 */
   --cb-font-display: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI",
@@ -343,6 +386,7 @@ body {
 
 /* ════════════ 顶栏：Mica 玻璃条 ════════════ */
 .header {
+  --cb-toolbar-control-height: 32px;
   display: flex; align-items: center; gap: 16px;
   padding: 0 14px;
   background: rgba(255, 255, 255, .62);
@@ -363,9 +407,31 @@ body {
 }
 .proj-name { width: 170px; }
 .tpl-select { width: 180px; }
-.body { height: calc(100% - 48px); }
 
-/* 顶栏输入/选择：轻材质（白 .86 + 8px squircle + 上缘高光） */
+.header :is(.el-input__wrapper, .el-select__wrapper, .el-button) {
+  height: var(--cb-toolbar-control-height);
+  corner-shape: round;
+}
+.header :is(.el-input__wrapper, .el-select__wrapper) { border-radius: var(--cb-r-pill); }
+.header .export-btn .el-button-group { display: inline-flex; }
+
+.desktop-header { gap: 12px; padding-inline: 12px; }
+.desktop-header .hgroup { flex: none; gap: 4px; }
+.desktop-header .hgroup > .el-button + .el-button { margin-left: 0; }
+.desktop-header .proj-name { width: clamp(88px, 10vw, 170px); }
+.desktop-header .tpl-select { width: clamp(108px, 12vw, 180px); }
+.desktop-header .header-spacer { align-self: stretch; min-width: 24px; }
+.desktop-header .brand { user-select: none; }
+
+@media (max-width: 1100px) {
+  .desktop-header { gap: 8px; }
+  .desktop-header .hgroup > .el-button,
+  .desktop-header .el-dropdown .el-button { padding-inline: 8px; }
+  .desktop-header .view-switch { --cb-mode-padding: 8px; }
+  .desktop-header .theme-prefix { display: none; }
+}
+
+/* 输入与下拉共用轻材质。顶栏轮廓由上方的顶栏控件样式定义。 */
 .el-input__wrapper, .el-select__wrapper {
   background-color: rgba(255, 255, 255, .86);
   border-radius: var(--cb-r-ctl);
@@ -434,39 +500,80 @@ body {
   border-radius: 0 var(--cb-r-pill) var(--cb-r-pill) 0;
 }
 
-/* ════════════ 单项/批量切换：胶囊分段控件 ════════════ */
-.el-radio-group {
-  background: rgba(15, 34, 64, .055);
+/* ════════════ 视图切换：选中胶囊沿共同轨道滑动 ════════════ */
+.header .view-switch {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  flex: none;
+  height: var(--cb-toolbar-control-height);
+  padding: 2px;
+  background: var(--cb-active);
   border-radius: var(--cb-r-pill);
-  corner-shape: squircle;
-  padding: 3px;
-  gap: 0;
+  corner-shape: round;
+  box-shadow: inset 0 1px 0 var(--cb-border);
 }
-.el-radio-button__inner {
-  background: transparent;
-  border: 0 !important;
-  border-radius: var(--cb-r-pill) !important;
-  box-shadow: none !important;
+.view-switch::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 2px auto 2px 2px;
+  width: calc(50% - 2px);
+  border-radius: var(--cb-r-pill);
+  corner-shape: round;
+  background: var(--cb-surface-solid);
+  box-shadow: 0 1px 2px var(--cb-border-strong);
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 200ms cubic-bezier(.22, 1, .36, 1);
+}
+.view-switch[data-mode='batch']::before { transform: translateX(100%); }
+.view-switch .el-radio-button {
+  --el-radio-button-checked-bg-color: transparent;
+  --el-radio-button-checked-text-color: var(--cb-text);
+  --el-radio-button-checked-border-color: transparent;
+  height: 100%;
+}
+.view-switch .el-radio-button .el-radio-button__inner {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 0 var(--cb-mode-padding, 12px);
+  border: 0;
+  border-radius: var(--cb-r-pill);
+  corner-shape: round;
+  outline-color: transparent;
   color: var(--cb-text-2);
+  font-size: 13px;
   font-weight: 500;
-  padding: 5px 14px;
+  transition: color 150ms ease-out;
 }
-.el-radio-button__original-radio:checked + .el-radio-button__inner {
-  background: #fff;
-  color: var(--cb-text);
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(16, 28, 48, .12) !important;
+.view-switch .el-radio-button.is-active .el-radio-button__inner { font-weight: 600; }
+.view-switch .el-radio-button__original-radio:focus-visible + .el-radio-button__inner {
+  outline: 2px solid var(--cb-accent);
+  outline-offset: -2px;
 }
 
-/* ════════════ 侧栏：玻璃边栏 ════════════ */
-.aside {
-  background: rgba(255, 255, 255, .45);
-  -webkit-backdrop-filter: blur(30px) saturate(1.6);
-  backdrop-filter: blur(30px) saturate(1.6);
-  border-right: 1px solid var(--cb-border);
-  box-shadow: inset 0 1px 0 var(--cb-glass-hi);
-  padding: 10px; overflow: auto;
+/* ════════════ 工作区：侧栏、参数与预览共用玻璃卡材质 ════════════ */
+.root .body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--cb-panel-gap);
+  gap: var(--cb-panel-gap);
 }
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5), transparent 110px),
+              var(--cb-surface);
+  -webkit-backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--cb-r-card);
+  corner-shape: squircle;
+  box-shadow: inset 0 1px 0 var(--cb-glass-hi), inset 0 -1px 0 var(--cb-glass-lo),
+              0 1px 2px rgba(16, 28, 48, .05), 0 10px 28px -14px rgba(16, 28, 48, .18);
+}
+.aside { padding: 12px; overflow: auto; }
 .loader-err { margin-bottom: 10px; border-radius: var(--cb-r-ctl); corner-shape: squircle; }
 .err-pre { max-height: 200px; overflow: auto; font-size: 11px; line-height: 1.4; margin: 4px 0 0; }
 .aside-head {
@@ -487,8 +594,7 @@ body {
 .item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-hint { color: var(--cb-text-3); font-size: 12px; margin-top: 20px; text-align: center; }
 
-/* ════════════ 主区：玻璃卡落在画布上 ════════════ */
-.main { padding: 12px; overflow: auto; }
+.body > .main { min-width: 0; padding: 0; overflow: visible; }
 .spin { animation: rotate 1s linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }
 
@@ -592,6 +698,7 @@ body {
 .el-popover { padding: 10px 12px; }
 /* 滚动条细长圆角 */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: rgba(15, 34, 64, .16); border-radius: 5px;
   border: 3px solid transparent; background-clip: content-box;
@@ -599,6 +706,6 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: rgba(15, 34, 64, .28); background-clip: content-box; }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 </style>

@@ -1,39 +1,28 @@
-"""构建 CalcBook 离线发布包（全离线，内置 Python）。
+"""构建 Windows x64 便携版。解压后从 CalcBook.exe 启动，目标机需要 WebView2。
 
-产物：release/calcbook-<版本>.zip
-  ├─ CalcBook.exe            （PyInstaller 单文件启动器，窗口程序，只含 stdlib）
-  ├─ python/                 （嵌入版 Python，构建时预装全部依赖，含 pip）
-  ├─ examples/               （模板，gl.py、stair.py、canopy.py）
-  └─ docs/                   （模板开发指南）
-
-用户侧解压双击 CalcBook.exe 即用：不依赖系统 Python、零联网、
-不写注册表/环境变量，删掉解压目录即完全卸载。calcbook 的 wheel
-只在构建时装进包内 python/，是构建中间产物，不再随 zip 分发。
-
-预装清单（B 档）：calcbook wheel + numpy scipy pandas matplotlib
-openpyxl（pywebview/pydantic/fastapi/uvicorn 由 wheel 依赖自动带入）。
-
-依赖：pip install build pyinstaller pillow（pillow 仅 tools/make_icon.py 用）
+在 Windows 上使用 Python 3.11+、build 与 Rust MSVC 工具链构建。
+产物含 Tauri 窗口、嵌入式 Python、示例模板、模板文档和使用说明。
+构建时联网准备运行时与依赖，使用时可离线运行内置示例。
 """
 
 from __future__ import annotations
 
-import re
+import os
 import shutil
 import subprocess
 import sys
 import tomllib
 import urllib.request
+import zipfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASE = ROOT / "release"
-APP = RELEASE / "_app"  # zip 的组装目录
-
-PY_VERSION = "3.12.10"  # 嵌入版 Python：3.12 系列最后带 embed zip 的 bugfix 版
-PY_MIRROR = "https://mirrors.huaweicloud.com/python"
+TAURI = ROOT / "src-tauri"
+WINDOWS_TARGET = "x86_64-pc-windows-msvc"
+PY_VERSION = "3.12.10"
 PY_OFFICIAL = "https://www.python.org/ftp/python"
-PIP_INDEX = "https://mirrors.aliyun.com/pypi/simple"
 PREINSTALL = ["numpy", "scipy", "pandas", "matplotlib", "openpyxl"]
 
 
@@ -45,56 +34,33 @@ def version() -> str:
     return ver
 
 
-def build_wheel() -> Path:
+def build_wheel(output: Path) -> Path:
     print("==> 构建 wheel")
-    shutil.rmtree(ROOT / "dist", ignore_errors=True)  # 清残留 wheel，避免版本混淆
-    r = subprocess.run([sys.executable, "-m", "build", "--wheel"], cwd=ROOT)
-    if r.returncode != 0:
-        raise SystemExit(f"wheel 构建失败（rc={r.returncode}，见上方日志）")
-
-    def key(p: Path) -> tuple:  # 版本序：a10 > a9（字符串序会错）
-        nums = re.findall(r"\d+", p.name)
-        return tuple(int(x) for x in nums) if len(nums) >= 4 else (0,)
-
-    wheels = sorted((ROOT / "dist").glob("calcbook-*.whl"), key=key)
-    if not wheels:
-        raise SystemExit("wheel 构建失败（dist/ 下没有 calcbook-*.whl）")
-    return wheels[-1]
+    # 从源码归档构建 wheel，隔离工作树 build/ 中的旧包文件。
+    subprocess.run([sys.executable, "-m", "build", "--outdir", str(output)],
+                   cwd=ROOT, check=True)
+    wheels = list(output.glob("calcbook-*.whl"))
+    if len(wheels) != 1:
+        raise SystemExit(f"应生成一个 CalcBook wheel，找到 {len(wheels)} 个")
+    return wheels[0]
 
 
-def build_launcher() -> Path:
-    print("==> 打包 CalcBook.exe（PyInstaller 单文件窗口程序）")
-    r = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", "--onefile", "--windowed", "--clean",
-         "--name", "CalcBook", "--icon", str(ROOT / "assets" / "icon.ico"),
-         "--distpath", str(RELEASE / "_build" / "dist"),
-         "--workpath", str(RELEASE / "_build" / "work"), "--specpath", str(RELEASE),
-         str(ROOT / "tools" / "launcher.py")])
-    if r.returncode != 0:
-        raise SystemExit(f"PyInstaller 打包失败（rc={r.returncode}，见上方日志）")
-    return RELEASE / "_build" / "dist" / "CalcBook.exe"
+def build_desktop() -> Path:
+    print("==> 构建 Tauri 桌面程序")
+    target_dir = Path(os.environ.get("CARGO_TARGET_DIR") or TAURI / "target").resolve()
+    subprocess.run(["cargo", "build", "--release", "--locked",
+                    "--manifest-path", str(TAURI / "Cargo.toml"),
+                    "--target", WINDOWS_TARGET, "--target-dir", str(target_dir)],
+                   cwd=ROOT, check=True)
+    return target_dir / WINDOWS_TARGET / "release" / "CalcBook.exe"
 
 
-def fetch_embed_python(dest: Path) -> None:
-    """下载嵌入版 Python 并解压到 dest（华为云镜像优先，官方源回退）。"""
-    tag = PY_VERSION
-    urls = [f"{PY_MIRROR}/{tag}/python-{tag}-embed-amd64.zip",
-            f"{PY_OFFICIAL}/{tag}/python-{tag}-embed-amd64.zip"]
-    zip_path = RELEASE / "_build" / "python-embed.zip"
-    zip_path.parent.mkdir(parents=True, exist_ok=True)
-    last_err: Exception | None = None
-    for url in urls:
-        try:
-            print(f"    下载 {url}")
-            with urllib.request.urlopen(url, timeout=120) as r, open(zip_path, "wb") as f:
-                shutil.copyfileobj(r, f)
-            print(f"    完成（{zip_path.stat().st_size / 1e6:.1f} MB）")
-            break
-        except OSError as e:
-            last_err = e
-    else:
-        raise SystemExit(f"嵌入版 Python 下载失败：{last_err}")
-    shutil.unpack_archive(zip_path, dest)  # 官方 zip 内无中文路径，直接解
+def fetch_embed_python(dest: Path, download: Path) -> None:
+    url = f"{PY_OFFICIAL}/{PY_VERSION}/python-{PY_VERSION}-embed-amd64.zip"
+    print(f"    下载 {url}")
+    with urllib.request.urlopen(url, timeout=120) as source, download.open("wb") as target:
+        shutil.copyfileobj(source, target)
+    shutil.unpack_archive(download, dest)
     if not (dest / "python.exe").is_file():
         raise SystemExit(f"解压结果异常：{dest} 下没有 python.exe")
 
@@ -121,29 +87,18 @@ def setup_python(python_dir: Path) -> Path:
 
 
 def preinstall(python_exe: Path, whl: Path) -> None:
-    """预装 calcbook wheel + B 档数学库。
+    """用预构建 wheel 安装 CalcBook 及常用模板库。"""
+    subprocess.run([str(python_exe), "-m", "pip", "install", "--only-binary=:all:",
+                    "--no-warn-script-location", "--progress-bar", "off",
+                    str(whl), *PREINSTALL], check=True)
 
-    分两步：数学库严格仅二进制 wheel（--only-binary，杜绝源码编译）；
-    calcbook 本体放开——其依赖全有 wheel，唯一例外 proxy-tools 只有
-    纯 Python sdist（无 C 扩展，pip 构建 wheel 无需编译器）。
-    """
-    subprocess.run([str(python_exe), "-m", "pip", "install",
-                    "--only-binary=:all:", "--no-warn-script-location",
-                    "--progress-bar", "off", "-i", PIP_INDEX,
-                    *PREINSTALL], check=True)
-    subprocess.run([str(python_exe), "-m", "pip", "install",
-                    "--prefer-binary", "--no-warn-script-location",
-                    "--progress-bar", "off", "-i", PIP_INDEX,
-                    str(whl)], check=True)
-    # 构建自检：包内核心链路 import 全通
-    code = ("import calcbook, pydantic, fastapi, uvicorn, webview, "
-            "numpy, scipy, pandas, matplotlib, openpyxl\n"
-            "print(calcbook.__version__)")
-    r = subprocess.run([str(python_exe), "-c", code], capture_output=True,
-                       text=True, timeout=300, cwd=str(python_exe.parent))
-    if r.returncode != 0:
-        raise SystemExit(f"包内环境自检失败：\n{r.stdout}\n{r.stderr}")
-    print(f"    自检通过：calcbook {r.stdout.strip()}")
+
+def verify_runtime(python_exe: Path) -> None:
+    code = ("import calcbook.desktop, numpy, scipy, pandas, matplotlib, openpyxl\n"
+            "print('CalcBook ' + calcbook.__version__)")
+    subprocess.run([str(python_exe), "-c", code], check=True,
+                   timeout=60, cwd=python_exe.parent)
+    subprocess.run([str(python_exe), "-m", "pip", "check"], check=True, timeout=60)
 
 
 def trim_site_packages(python_dir: Path) -> None:
@@ -157,70 +112,64 @@ def trim_site_packages(python_dir: Path) -> None:
     print(f"    已剔除 {n} 个 tests 目录")
 
 
-def assemble(exe: Path, tag: str) -> Path:
-    print("==> 组装发布目录")
-    # 防呆：前端产物（构建时随 wheel 进 site-packages）缺了会导致离线包
-    # 打开只有 JSON 页、导出 500——在打包前就报出来
-    site = APP / "python" / "Lib" / "site-packages" / "calcbook"
+def assemble(app: Path, exe: Path, tag: str) -> None:
+    print("==> 组装便携目录")
+    site = app / "python" / "Lib" / "site-packages" / "calcbook"
     for rel in ("web/index.html", "vendor/katex/katex.min.css"):
         if not (site / rel).is_file():
-            raise SystemExit(f"包内缺少 {rel}——前端产物未随 wheel 打入，"
-                             f"请先 cd web && npm run build 再构建发布包")
-    (APP / "examples").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(exe, APP / exe.name)
+            raise SystemExit(f"包内缺少 {rel}。请先在 web/ 下执行 npm run build。")
+    (app / "examples").mkdir()
+    shutil.copy2(exe, app / "CalcBook.exe")
     for tpl in sorted((ROOT / "examples").glob("*.py")):
-        shutil.copy2(tpl, APP / "examples" / tpl.name)
-    shutil.copytree(ROOT / "docs", APP / "docs")  # 模板开发指南
-    (APP / "使用说明.txt").write_text(
-        f"""CalcBook {tag}（离线完整版）
+        shutil.copy2(tpl, app / "examples" / tpl.name)
+    shutil.copytree(ROOT / "docs", app / "docs")
+    (app / "使用说明.txt").write_text(
+        f"""CalcBook {tag} · Windows x64 便携版
 
-使用：
-  1. 解压整个压缩包后，双击 CalcBook.exe。
-  2. Python 与全部依赖（含 numpy / scipy / pandas / matplotlib / openpyxl 等）
-     已内置在 python/ 目录，开箱即用，全程无需联网，不写注册表、
-     不改系统环境；删掉整个解压文件夹即完全卸载。
-  3. 模板声明的额外第三方库（__calcbook_requires__）缺失时，启动器会用
-     内置 pip 从国内镜像自动装进 python/（仅此场景需要联网）。
-  4. 启动全程没有命令行黑窗；完整日志写入 calcbook.log（排障用）；
-     实际服务地址显示在窗口顶栏右侧（端口被占用时会自动递加）。
+在已安装 Microsoft Edge WebView2 Runtime 的 Windows 10/11 x64 上，完整解压后双击
+CalcBook.exe。移动时请保留整个目录。Python {PY_VERSION}、计算界面、常用计算库和
+示例模板均随包提供，运行内置示例无需联网。导出时可在菜单勾选「导出离线版」。
 
-文件说明：
-  CalcBook.exe                 —— 启动器
-  python/                      —— 内置 Python {PY_VERSION} 及全部依赖（已预装，勿改动）
-  examples/                    —— 计算书示例模板（gl 梁、stair 楼梯、canopy 雨篷）
-  docs/模板开发指南.md          —— 模板开发指南（学习写自己的模板）
+将自定义模板和配套数据文件放进 examples/。模板需要额外的库时，退出 CalcBook，
+在解压目录用包内 Python 安装（将「包名」换成模板文档里的 PyPI 包名）：
+  .\\python\\python.exe -m pip install 包名
+
+工程请保存为 .cbproj 文件，重启后可重新打开。日志位于
+%LOCALAPPDATA%\\com.calcbook.desktop\\logs\\calcbook-desktop.log。
+模板开发指南见 docs/模板开发指南.md。
 """, encoding="utf-8")
-    print("==> 压缩 zip")
-    import zipfile
-    zip_path = RELEASE / f"calcbook-{tag}.zip"
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(APP.rglob("*")):
-            if f.is_file():
-                zf.write(f, f.relative_to(APP).as_posix())
-    return zip_path
 
 
 def main() -> None:
+    if sys.platform != "win32":
+        raise SystemExit("请在 Windows 上构建便携包。")
     tag = version()
-    print(f"==> CalcBook 离线发布包 {tag}（内置 Python {PY_VERSION}）")
-    whl = build_wheel()
-    exe = build_launcher()
-    if APP.exists():
-        shutil.rmtree(APP)
-    pydir = APP / "python"
-    print(f"==> 准备内置 Python {PY_VERSION}")
-    fetch_embed_python(pydir)
-    pyexe = setup_python(pydir)
-    print("==> 预装 calcbook 及数学库（B 档）")
-    preinstall(pyexe, whl)
-    print("==> 精简 site-packages")
-    trim_site_packages(pydir)
-    zip_path = assemble(exe, tag)
-    shutil.rmtree(APP)
-    shutil.rmtree(RELEASE / "_build")
-    (RELEASE / "CalcBook.spec").unlink(missing_ok=True)  # PyInstaller --specpath 残留
+    print(f"==> CalcBook Windows x64 便携版 {tag}（内置 Python {PY_VERSION}）")
+    RELEASE.mkdir(exist_ok=True)
+    zip_path = RELEASE / f"calcbook-{tag}-windows-x64-portable.zip"
+    with TemporaryDirectory(prefix="calcbook-build-", dir=RELEASE) as tmp:
+        work = Path(tmp)
+        exe = build_desktop()
+        whl = build_wheel(work / "wheel")
+        app = work / "app"
+        pydir = app / "python"
+        print(f"==> 准备内置 Python {PY_VERSION}")
+        fetch_embed_python(pydir, work / "python-embed.zip")
+        pyexe = setup_python(pydir)
+        print("==> 预装 CalcBook 及常用模板库")
+        preinstall(pyexe, whl)
+        trim_site_packages(pydir)
+        verify_runtime(pyexe)
+        assemble(app, exe, tag)
+        print("==> 压缩 zip")
+        archive = work / zip_path.name
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+            for path in sorted(app.rglob("*")):
+                if path.is_file():
+                    zf.write(path, path.relative_to(app).as_posix())
+        archive.replace(zip_path)
     size_mb = zip_path.stat().st_size / 1024 / 1024
-    print(f"\n完成：{zip_path}（{size_mb:.1f} MB）")
+    print(f"\n完成：{zip_path}（{size_mb:.1f} MiB）")
 
 
 if __name__ == "__main__":

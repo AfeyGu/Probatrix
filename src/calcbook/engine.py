@@ -119,9 +119,9 @@ def run_template(meta: TemplateMeta, params_data: dict[str, Any],
 # ----------------------------------------------------------------------
 _INSTALL_HINT = (
     "解决办法：\n"
-    "  1) 命令行安装：{cmd}\n"
-    "  2) 离线发布包用户：关闭 CalcBook 后重新运行 CalcBook.exe，"
-    "启动器会自动安装模板需要的库\n"
+    "  1) Python 环境：{cmd}\n"
+    "  2) Windows 便携版：关闭 CalcBook，在解压目录执行 .\\python\\python.exe -m {cmd} 后重新打开。\n"
+    "  库的导入名与 PyPI 包名可能不同，请按模板说明安装。\n"
 )
 
 

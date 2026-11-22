@@ -13,38 +13,28 @@
 
 <img src="assets/screenshot-main.png" alt="CalcBook 桌面窗口界面" width="720" />
 
-*界面：左侧参数设置，右侧计算书实时预览（KaTeX 渲染）；批量表格支持 Excel 粘贴。*
+左侧选择计算项，中间输入参数，右侧实时预览计算书。批量表格支持从 Excel 粘贴。
+
+### Windows 桌面便携版
+
+在装有 **Microsoft Edge WebView2 Runtime** 的 Windows 10/11 x64 上，完整解压 `calcbook-<版本>-windows-x64-portable.zip`，双击 `CalcBook.exe`。移动时带上整个文件夹。包内附 Python 3.12、常用计算库、示例模板和使用说明，内置示例可离线计算。构建方法见下方的「构建 Windows 便携包」。
+
+将自定义模板和配套文件放在 `examples/`。若模板提示缺库，退出 CalcBook，在解压目录使用 `.\python\python.exe -m pip install 包名` 安装，将 `包名` 换成模板说明中的 PyPI 包名。
+
+桌面窗口使用自绘标题栏，顶栏空白处可拖动，双击可最大化或还原。普通窗口可沿四边及右下圆弧内侧缩放。工程通过 `.cbproj` 文件保存并在下次启动时打开。日志位于 `%LOCALAPPDATA%\com.calcbook.desktop\logs\calcbook-desktop.log`，WebView2 缓存也保存在本机应用数据目录。
+
+### 浏览器版
 
 ```bash
 pip install calcbook        # 或从源码：pip install .
 calcbook serve              # 启动本地服务并自动打开浏览器
 ```
 
-默认地址 `http://127.0.0.1:8317`（被占用时自动向后递加找空闲端口，启动信息会打印实际地址），
-模板目录默认 `~/CalcBook模板/`。
+默认地址 `http://127.0.0.1:8317`，端口被占用时自动递加。模板目录默认 `~/CalcBook模板/`。
 
 ```bash
 calcbook serve --templates D/我的模板 --port 8317
 ```
-
-**桌面窗口模式**（不弹浏览器，Win10/11 自带 WebView2）：
-
-```bash
-calcbook serve --ui webview
-```
-
-> 界面构建产物已随包分发（`src/calcbook/web/`），**使用侧不需要 Node**；
-> 只有改前端代码时才需要 `cd web && npm install && npm run build`。
-
-**离线分发包**（不依赖 PyPI）：`release/calcbook-<版本>.zip` 内含 `CalcBook.exe`
-启动器 + `python/`（**内置 Python 3.12，已预装 calcbook 及全部依赖**：
-numpy/scipy/pandas/matplotlib/openpyxl 等）+ `examples/` 模板。
-解压后双击 `CalcBook.exe` 即用：**完全离线**（不依赖系统 Python、不写注册表，
-删目录即完全卸载），以桌面窗口启动服务（全程无命令行窗口，完整日志在包目录
-`calcbook.log`，实际服务地址显示在窗口顶栏右侧）。仅当模板声明的第三方库
-（`__calcbook_requires__`）在包内缺失时，启动器才会用内置 pip 从国内镜像
-自动补装（这是唯一的联网场景）。
-构建方式 `python tools/build_release.py`。
 
 ## 写一个计算模板
 
@@ -118,7 +108,7 @@ p.Wx = Hsteel.TABLE["HN400x200"]["Wx"]
    - 默认导出走 KaTeX CDN，文件极小、需联网渲染公式；
    - 顶栏「⋯」菜单勾选「导出离线版」则内联样式与 woff2 字体（约 0.65 MB），断网/内网可直接打开
 
-界面为 Notion 风格的米白画布，顶栏可切换三套浅色主题（米白/纯白/亚麻）。
+顶栏可切换雾蓝、素白和暖砂三套浅色主题。
 
 模板 hash 变化时（模板代码改过），界面会提示「模板已改」，提醒旧结果可能失效。
 
@@ -131,7 +121,32 @@ cd web && npm install && npm run dev   # 前端开发模式（代理到 8317）
 cd web && npm run build                # 构建到 src/calcbook/web/
 ```
 
-设计决策与取舍见 [`计算书工具文档.md`](计算书工具文档.md)。
+### 构建 Windows 便携包
+
+在 Windows 项目根目录执行下面的命令。构建机需要 Python 3.11+、Rust 的 `x86_64-pc-windows-msvc` 工具链和 Visual Studio C++ Build Tools。前端有改动时，先运行上面的前端构建命令。
+
+```powershell
+python -m pip install build
+python tools/build_release.py
+```
+
+脚本使用 `Cargo.lock` 构建 Tauri Release，下载 Python 3.12 嵌入版，并将 CalcBook 和常用计算库装进包内 `python/`。首次构建需要联网。ZIP 输出到 `release/calcbook-<版本>-windows-x64-portable.zip`。
+
+### 桌面宿主开发
+
+调试宿主时，可指向装有 CalcBook 和模板依赖的开发环境。每次启动使用新的本机端口，工程保存为 `.cbproj` 后可再次打开，主题和导出偏好按本次运行设置。
+
+```powershell
+py -3.12 -m pip install -e .
+cargo build --release --locked --manifest-path src-tauri/Cargo.toml
+$env:CALCBOOK_PYTHON = py -3.12 -c 'import sys; print(sys.executable)'
+$env:CALCBOOK_TEMPLATES = (Resolve-Path .\examples).Path
+.\src-tauri\target\release\CalcBook.exe
+```
+
+[桌面版架构与验收记录](.agents/notes/2026-11-21-tauri-desktop.md)
+
+设计决策与取舍见 [计算书工具文档.md](计算书工具文档.md)。
 
 ## 当前状态
 

@@ -1,0 +1,31 @@
+[package]
+name = "calcbook-desktop"
+version = "0.1.0"
+description = "CalcBook Windows 桌面宿主（Tauri 2）"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "CalcBook"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+# 窗口圆角外框：GDI 区域 + 窗口样式/显示器信息查询（见 src/rounding.rs）。
+# 宿主只构建 Windows 版本，这里不做目标条件声明。
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# 发布版体积与启动时间优先；thin LTO 在体积与构建时长之间取平衡。
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = true

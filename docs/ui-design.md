@@ -16,7 +16,7 @@ Windows 11 通透（Mica/Acrylic 毛玻璃）+ 变曲率圆角（squircle）+ �
 :root{
   /* 半径三档——全站只有这三档，禁止第四档 */
   --r-card:24px;      /* 卡片/浮层/弹窗/toast/下拉弹层 */
-  --r-ctl:8px;        /* 输入框、模板选择行、开关行 */
+  --r-ctl:12px;       /* 工作区输入框、选择框、开关行 */
   --r-pill:999px;     /* 所有按钮、分段控件、菜单项、chip、键帽 */
 
   /* 颜色：文字三级 + 线两级 + 画布 + 功能色 */
@@ -50,16 +50,16 @@ Windows 11 通透（Mica/Acrylic 毛玻璃）+ 变曲率圆角（squircle）+ �
 
 ## 3. 变曲率规则（corner-shape）
 
-- 每个可见圆角都是 `border-radius` + `corner-shape:squircle` **成对出现**（squircle 在 Chromium 139+/WebView2 原生支持；旧浏览器自动降级普通圆角，无需 `@supports`）。
-- 超椭圆参数：全站用 `squircle`；`superellipse(5)` 仅页尾演示条对照，不用于产品。
-- 例外：开关轨道/勾选框等几何胶囊用 `999px`；计算书纸面显式 `corner-shape:round !important; border-radius:2px !important` 退出。
+- 卡片和普通输入控件的 `border-radius` 与 `corner-shape: squircle` 成对使用。新版 Chromium 和 WebView2 支持变曲率圆角，其他浏览器按普通圆弧渲染。
+- 顶栏按钮、工程名、模板选择、分段控件和窗口按钮组用 `--r-pill` 与 `corner-shape: round`，形成半径随高度变化的等高胶囊。开关轨道也使用胶囊半径。
+- 计算书纸面采用 2px 普通圆角。
 
 ## 4. 材质三级
 
 | 层 | 用途 | 参数 |
 |---|---|---|
 | L0 | 画布 | 三团彩色渐变 + `--canvas` |
-| L1 Mica | 主卡（参数/预览/批量） | `--l1-bg` + `blur(40) saturate(1.9)`，边框 `1px rgba(255,255,255,.9)`，顶部 110px 受光渐变 `linear-gradient(180deg,rgba(255,255,255,.5),transparent)`，上缘高光 `inset 0 1px 0 var(--l1-hi)`、下缘暗线 `inset 0 -1px 0 var(--l1-lo)` |
+| L1 Mica | 工作区卡片（侧栏/参数/预览/批量） | `--l1-bg` + `blur(40) saturate(1.9)`，边框 `1px rgba(255,255,255,.9)`，顶部 110px 受光渐变 `linear-gradient(180deg,rgba(255,255,255,.5),transparent)`，上缘高光 `inset 0 1px 0 var(--l1-hi)`、下缘暗线 `inset 0 -1px 0 var(--l1-lo)` |
 | L2 Acrylic | toast/下拉/弹窗 | `--l2-bg` + `blur(52) saturate(2.1)`，玻璃内描边（上 `.55` 白、下蓝灰暗收）+ `--sh-near --sh-far` 双层投影 |
 | 输入件 | 输入框/下拉行 | 白 `.86`、边 `rgba(15,34,64,.12)`；聚焦白底 + accent 边 + `3px var(--accent-soft)` 光环 |
 
@@ -70,8 +70,12 @@ Windows 11 通透（Mica/Acrylic 毛玻璃）+ 变曲率圆角（squircle）+ �
 | 组件 | 规格 |
 |---|---|
 | 按钮（全站唯一样式） | 高 32px、内边距 0 13px、胶囊半径、白玻璃底（`rgba(255,255,255,.9)`）、无边框分色；hover 白底 + accent 描边 |
-| 输入控件 | 高 32px、`--r-ctl`、单位后缀右贴 |
-| 分段控件（单页参数/批量表格） | 胶囊容器（深 `rgba(15,34,64,.055)`、内边距 3px）+ 胶囊选中项（白底+轻投影） |
+| 桌面外框 | 工作界面的普通窗口用 24 个逻辑像素圆角，随系统缩放。四条边可调整大小，右下圆弧内侧可斜向拖动。最大化时外框贴齐工作区。 |
+| 顶栏控件 | 48px 顶栏内垂直居中。按钮、输入框、下拉和分段控件外部高度统一为 32px，共用胶囊轮廓。 |
+| 桌面窗口按钮 | 最小化、最大化与关闭共用一个 32px 玻璃胶囊框。各按钮宽 40px，关闭悬停使用危险色令牌。 |
+| 输入控件 | 高 32px，工作区内用 `--r-ctl`，单位后缀右贴。 |
+| 单项／批量切换 | 一条胶囊轨道内放两个等宽选项。白色选中块在轨道内以 200ms 滑动，缓动曲线为 `cubic-bezier(.22, 1, .36, 1)`。 |
+| 工作区 | 侧栏、参数卡和预览卡上下对齐，外侧留白与卡片间隔均为 12px。侧栏、参数与预览各自滚动。 |
 | 开关 | 轨道 38×20 胶囊、滑块 14、回弹曲线 `cubic-bezier(.34,1.56,.64,1)` |
 | chip/状态 | 胶囊、淡色底（如 `rgba(19,122,82,.10)` + `--ok`），不做边框 |
 | 菜单项 | 高 30px、胶囊 |
@@ -83,7 +87,7 @@ Windows 11 通透（Mica/Acrylic 毛玻璃）+ 变曲率圆角（squircle）+ �
 1. **半径只许三档**：新元素必须归入 card/ctl/pill 之一，禁止自定半径值。
 2. **按钮无突出色**：不做 primary 实心/彩色按钮，主次靠位置与字重表达；`--accent` 只用于聚焦环、勾选、进度、链接等功能态。
 3. **阴影蓝灰调**（`rgba(30,58,92,…)`），双层（近锐+远散），禁止纯黑。
-4. **动效克制**：150–200ms ease-out，只动 background/border-color/box-shadow/opacity；禁止位移缩放类大动画；`prefers-reduced-motion` 下全部关闭。
+4. **动效克制**。常规过渡用 150–200ms `ease-out`，反馈集中在底色、边框、阴影和透明度。分段选中块的移动限制在控件轨道内。`prefers-reduced-motion` 下直接切换。
 5. **数值一律等宽**：`--f-num` + `font-variant-numeric:tabular-nums`。
 6. **计算书纸面独立体系**：黑白、衬线（Songti SC/SimSun）、2px 直角、纸感排版由 `docstyle.py` 唯一定义；玻璃材质、彩色、大圆角、动效一律不得进入纸面。
 7. 新增界面文案密度对齐现状：操作区 12.5–13.5px，批量表 13px。

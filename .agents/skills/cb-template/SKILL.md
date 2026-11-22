@@ -83,9 +83,8 @@ API 细节一律查 `references/api.md`，不在此重复。
   先压缩，还可 `--crop` 裁边）
 - 字体注意：`Microsoft YaHei / SimHei`（中文标签）+ `axes.unicode_minus = False`（负号）
 - **用 matplotlib 的模板，必须在文件顶部声明依赖**（模块级）：
-  `__calcbook_requires__ = ["matplotlib"]`——否则用户机器缺库时界面只报
-  一屏 traceback；声明后界面提示「缺少依赖 + 安装指引」，离线发布包
-  启动器启动时还会自动安装到包内 venv。
+  `__calcbook_requires__ = ["matplotlib"]`，让界面提前提示缺失的库。
+  便携包预装 matplotlib，额外依赖由用户通过包内 Python 安装。
 
 ### 1.6 命名三件套（影响 `template_id` 与工程文件兼容性）
 - **文件名** `xxx.py` → 模板 id 前缀（**一旦发布不要改**，旧工程按 id 找不到）
@@ -151,8 +150,7 @@ python assets/example-steel-beam.py
   `formula + subs` 旧写法仍支持；`check` 紧跟推导之后（界面预览按此节奏）
 - **字符串字面量**：不要用 `str.format`（CSS 花括号会冲突；导出模板的工程文件也走 `str.replace`）
 - **第三方依赖**：用了 matplotlib 等不在 calcbook 基础依赖里的库 → 文件顶部声明
-  `__calcbook_requires__ = ["matplotlib"]`（import 名列表；缺库时界面给「缺少依赖 +
-  安装指引」，离线包启动器自动装）
+  `__calcbook_requires__ = ["matplotlib"]`（导入名列表）。缺库时界面提示安装方法。
 - **group 设计**：材料/系数整组统一，几何/荷载每行填——参考 `assets/example-steel-beam.py` 的 group 划分
 
 ### 3.3 完整反模式清单

@@ -25,8 +25,7 @@ from pydantic import BaseModel
 
 from calcbook import CalcBook, Field, template
 
-#: 运行本模板所需第三方库（import 名）。未安装时界面提示缺依赖，
-#: 离线发布包 launcher 启动时会据此自动安装到包内 venv。
+#: 运行本模板所需的导入名，用于界面检查依赖。Windows 便携包预装 matplotlib。
 __calcbook_requires__ = ["matplotlib"]
 
 # ----------------------------------------------------------------------

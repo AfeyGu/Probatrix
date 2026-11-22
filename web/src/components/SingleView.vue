@@ -112,7 +112,7 @@ function rowsOf(params) {
 
 <template>
   <div v-if="item" class="single">
-    <div class="pane form-pane">
+    <div class="pane glass-panel form-pane">
       <div class="pane-head">
         <el-input v-model="item.name" class="item-name" placeholder="计算项名称" />
         <el-tag v-if="running" size="small" type="info">计算中…</el-tag>
@@ -148,7 +148,7 @@ function rowsOf(params) {
       </el-collapse>
     </div>
 
-    <div class="pane preview-pane">
+    <div class="pane glass-panel preview-pane">
       <el-alert v-if="result && !result.ok" type="error" :closable="false">
         <template #title>{{ result.error_title || '计算失败' }}</template>
         <pre class="err-pre">{{ result.error }}</pre>
@@ -163,24 +163,12 @@ function rowsOf(params) {
 </template>
 
 <style scoped>
-.single { display: flex; gap: 12px; height: 100%; }
-/* 玻璃卡（L1 Mica）：24px squircle + 上高光下暗线 + 顶部受光 */
-.pane {
-  flex: 1; overflow: auto;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 110px),
-              var(--cb-surface);
-  -webkit-backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
-  backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
-  border: 1px solid rgba(255, 255, 255, .9);
-  border-radius: var(--cb-r-card);
-  corner-shape: squircle;
-  box-shadow: inset 0 1px 0 var(--cb-glass-hi), inset 0 -1px 0 var(--cb-glass-lo),
-              0 1px 2px rgba(16, 28, 48, .05), 0 10px 28px -14px rgba(16, 28, 48, .18);
-  padding: 16px;
-}
+.single { display: flex; gap: var(--cb-panel-gap); height: 100%; }
+.pane { flex: 1; min-width: 0; overflow: auto; padding: 16px; }
 .preview-pane { flex: 1.618; } /* 预览 : 设置 = 0.618 : 0.382（黄金比） */
-.pane-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.item-name { width: 200px; }
+.pane-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.pane-head .item-name { flex: 1 1 96px; }
+.pane-head .el-button + .el-button { margin-left: 0; }
 .group-name { font-weight: 600; font-family: var(--cb-font-display); }
 .field-row { display: grid;
              grid-template-columns: repeat(var(--n, 1), 1fr);

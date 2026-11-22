@@ -81,6 +81,7 @@ function onPaste(e) {
     let item = items.value[i]
     if (!item) {
       addItem(templateId.value).then(created => {
+        if (!created) return
         params.forEach((name, j) => {
           if (cells[j] !== undefined) created.params[name] = coerce(cells[j], cols.value[j])
         })
@@ -152,7 +153,7 @@ async function onExportRowMd(row) {
 </script>
 
 <template>
-  <div class="batch" @paste="onPaste">
+  <div class="batch glass-panel" @paste="onPaste">
     <div class="toolbar">
       <el-button type="primary" plain @click="addItem(templateId)">＋ 加一行</el-button>
       <el-button :loading="runningAny" @click="runAll(templateId)">全部重算</el-button>
@@ -285,19 +286,9 @@ async function onExportRowMd(row) {
 </template>
 
 <style scoped>
-/* 玻璃卡（L1 Mica）：工具栏 + 表格同在一张 24px squircle 卡内 */
 .batch {
   height: 100%; display: flex; flex-direction: column;
   padding: 12px 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 110px),
-              var(--cb-surface);
-  -webkit-backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
-  backdrop-filter: blur(var(--cb-l1-blur)) saturate(var(--cb-l1-sat));
-  border: 1px solid rgba(255, 255, 255, .9);
-  border-radius: var(--cb-r-card);
-  corner-shape: squircle;
-  box-shadow: inset 0 1px 0 var(--cb-glass-hi), inset 0 -1px 0 var(--cb-glass-lo),
-              0 1px 2px rgba(16, 28, 48, .05), 0 10px 28px -14px rgba(16, 28, 48, .18);
 }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .summary { color: var(--cb-text-2); font-size: 13px; }

@@ -6,7 +6,7 @@ CalcBook——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端�
 
 ```bash
 pip install -e .                      # 可编辑安装（改后端代码即时生效）
-python -m pytest tests -q             # 全部测试（90 个：契约/后端/API + 模板回归）
+python -m pytest tests -q             # Python 契约、API、桌面后台、工程文件与模板回归
 python -m pytest tests/test_server.py::test_run_batch -q   # 单个测试
 
 calcbook serve --templates examples --port 8317 --no-browser   # 起本地服务
@@ -19,13 +19,20 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 ```
 
 - **打包验证**：`pip wheel --no-deps -w _wheelcheck .`（wheel 应 ~2.4 MB，含 `src/calcbook/web` 与 `src/calcbook/vendor`，用完删 `_wheelcheck/`）。
-- **离线发布包**：`python tools/build_release.py`（依赖 `pip install build pyinstaller`），产出 `release/calcbook-<版本>.zip`，全离线，详见「关键设计决定」。
+- **Windows x64 便携包**：安装 Rust MSVC 工具链与 `pip install build`，运行 `python tools/build_release.py`，产出 `release/calcbook-<版本>-windows-x64-portable.zip`。 [构建说明](README.md#构建-windows-便携包)
+- **Tauri 宿主测试**：`cargo test --locked --manifest-path src-tauri/Cargo.toml`。Windows 上可用 `CALCBOOK_TEST_PYTHON` 指向实际 Python 解释器。
 - 服务端 Python 代码改动需重启服务；`src/calcbook/web`、`src/calcbook/vendor` 由构建产出，**不要手改**。
 - 打包配置在 `pyproject.toml`（package-data 含 web/vendor）+ `MANIFEST.in`，两者要同步维护。
 
 ## 架构（数据流）
 
 ```
+Windows 桌面入口（src-tauri/）
+  → 无控制台启动 calcbook.desktop，监听就绪后回报本机端口给 Tauri
+  → WebView2 从该端口打开 server.py 托管的 Vue 界面，走现有 /api
+  → 主界面挂载自绘顶栏后隐藏系统标题栏，仅当前主 WebView 与本次回环地址可调用窗口操作
+  → 关窗关闭 stdin 管道，通知 Python 正常停机
+
 模板文件（examples/gl.py）
   → loader.py    目录扫描，importlib 导入（报错隔离到 errors，不打断其他文件），
                  收集 __calcbook_template__ 标记，填 template_id = "文件名.函数名"，算 sha256；
@@ -58,16 +65,11 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 - **模板第三方依赖用 `__calcbook_requires__` 声明**（模块级 import 名列表，可选）：
   loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
   前端下拉标注）；run 前拦截给「缺少依赖 + pip 指引」；engine 另兜底 ModuleNotFoundError
-  （解析 No module named 'X'，不甩原始 traceback）；离线包启动器（CalcBook.exe）启动时按全部模板
-  声明把缺的库用 pip（国内镜像）自动装进包内 python/。
-- **离线发布包内置 Python，全离线**：`tools/build_release.py` 产出
-  `release/calcbook-<版本>.zip` = `CalcBook.exe`（PyInstaller `--windowed` 启动器，
-  无控制台黑窗）+ `python/`（嵌入版 Python 3.12，构建时启用 site、装 pip、
-  预装 calcbook wheel + numpy/scipy/pandas/matplotlib/openpyxl，并剔除各库
-  tests/ 目录）+ `examples/` + `docs/`。**wheel 是构建中间产物**——构建时装进
-  包内 Python，不随 zip 分发。用户解压双击即用：零联网、不依赖系统 Python、
-  不写注册表/环境变量，删目录即完全卸载；仅模板缺第三方库时启动器用包内
-  pip（国内镜像）补装进 `python/`。升级 = 整包替换。
+  （解析 `No module named 'X'`，给出缺库名）。便携版用户通过包内 `python/python.exe -m pip install` 安装所需的 PyPI 包。
+- **Windows 便携包**由 `tools/build_release.py` 组装。`CalcBook.exe` 是 Tauri Release，
+  同目录的 `python/` 内含嵌入版 Python 3.12、pip、CalcBook、numpy/scipy/pandas/matplotlib/openpyxl。
+  `examples/` 放模板，`docs/` 放模板指南。wheel 供构建时安装进包内 Python。
+  目标机需装 WebView2，解压即可离线使用内置示例。日志及 WebView2 缓存保存在本机应用数据目录。
 - **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden/row/show_if` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回；row：声明相邻且同标记的参数在单件表单并排一行；show_if：条件显隐小表达式，不满足时表单隐藏但值保留，批量侧降级为默认隐藏列——它只是界面提示，开关想改变计算需模板计算里自己分支）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。
@@ -78,12 +80,12 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 
 ## 界面设计系统（v2-pro 通透风，改样式前先看这段）
 
-- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。
+- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。设计稿真源在 `ui-concepts/`（`v2-pro.html` 为实现基准，其余三版为历史方案对照）。
 
 - **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布与色斑/材质/文字/语义色/三档半径/字体三级），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
 - **主题切换 = 换 `data-theme` 属性下的色组**（雾蓝/素白/暖砂三套画布色相，材质与半径不变；暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。
 - EP 的 `--el-color-primary-light-3/5/7/8/9`、`-dark-2` 是编译期字面量，**换主色必须逐个覆盖**，只改 `--el-color-primary` 会让 plain 按钮/标签还是旧色。
-- 硬规则（详见 `docs/ui-design.md` §6）：半径只许三档（卡 24 / 输入 8 / 操作胶囊 999px），禁止自定半径；按钮统一玻璃胶囊、无实心突出色；阴影蓝灰调双层；动效 150–200ms 只动 background/border-color/box-shadow；数值等宽（`--cb-font-num` + tabular-nums）；光自上来（上缘 1px 高光、下缘暗线）。
+- 硬规则（详见 `docs/ui-design.md` §6）：半径只许三档（卡 24 / 工作区输入 12 / 操作胶囊 999px），禁止自定半径；按钮统一玻璃胶囊、无实心突出色；阴影蓝灰调双层；常规过渡 150–200ms，视图切换的选中胶囊在轨道内滑动；数值等宽（`--cb-font-num` + tabular-nums）；光自上来（上缘 1px 高光、下缘暗线）。
 - 双密度：批量表格保持紧凑（small/13px/单行），其余界面 14px 带呼吸感；批量表格列 min-width 由表头文字单行宽度算出（`colMinW`），单元格 nowrap。
 - 文档预览区（.cb-doc）是正式纸感（衬线/黑白/2px 直角，`.doc-paper` 显式白底），与界面风格刻意分区——预览必须与导出一致，改排版只改 `docstyle.py`。
 
@@ -91,13 +93,14 @@ npm run build                         # 构建到 src/calcbook/web/ 并拷贝 ve
 
 - **store 里往 items 塞对象后必须返回数组里的元素**（`store.project.items[len-1]`）——push 进 reactive 数组的原始对象赋值会绕过代理、界面不刷新（数据对、显示错，极难排查）。
 - `web/src/main.js` 用独立导出的 `init()`，不是 `store.init()`。
-- 刷新/切模板后对无缓存结果的项要 `scheduleRun` 补算，否则导出报「没有可导出的结果」。
+- 刷新/切模板后对无缓存结果的项要 `scheduleRun` 补算，否则导出报「没有可导出的结果」。切换模板与加项共用当前参数请求，晚到的旧选择不得覆盖新模板。
 - Element Plus 2.9 的 el-select 选中值不在 `input.value` 里，读 DOM 验证用 `.el-select__wrapper` 的 textContent。
 - **EP 的 el-scrollbar 滚动条默认 hover 才显示**（v-show 的 display:none）——要常显必须 `display:block !important`，只覆盖 opacity 无效；thumb 宽度由 EP 在 resize/scroll 时计算，改容器宽度后要触发 window resize 才会更新。
 - **BatchView 的控件类型函数是 `cellType`，SingleView 的是 `controlType`**——同名不同文件，混用会运行时白屏（踩过：统一设置弹窗空白）。
 - 读 el-table 样式别读根元素的 borderColor——未设置的边 fallback 到 currentColor，会误判成深色；要看 td/th 具体边的 style+width+color。
 - **表格透明化后冻结列必须给遮挡底色**：EP 的冻结列（fixed）是 sticky 覆盖层，靠自身背景遮挡横滚内容——表格整体设透明（落在玻璃卡内）时，必须给 `.el-table-fixed-column--left/--right` 的 td/th 不透明底色（含 hover 态），否则中间列内容会穿透固定列（踩过）。
 - label 里包 el-button **不会**触发关联 file input（交互元素拦截转发），要用 `input.click()`。
+- **预览纸面 `.doc-paper` 必须显式白底**：`.cb-doc` 本身无背景色，历史上靠白底 pane “透”出白色；pane 改为玻璃卡后必须给 `.doc-paper` 自建白底 + 2px 直角 + 纸感阴影，否则纸面会透出玻璃色。
 
 ## Git 约定
 

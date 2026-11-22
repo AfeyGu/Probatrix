@@ -30,6 +30,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as APIModel
@@ -40,7 +41,10 @@ from .fields import param_meta
 from .loader import TemplateLoader, file_hash
 from .project import Project, load_project, new_project, save_project
 
-__all__ = ["create_app", "AppContext"]
+__all__ = ["create_app", "AppContext", "DESKTOP_HOST"]
+
+#: 桌面宿主只服务 IPv4 回环（WebView2 与 /api 同源，端口由系统分配）
+DESKTOP_HOST = "127.0.0.1"
 
 #: 导出页模板：@@...@@ 为填充标记（不用 str.format，避开 CSS 花括号冲突）
 _HTML_TMPL = """<!DOCTYPE html>
@@ -137,15 +141,25 @@ class ExportReq(APIModel):
 # ----------------------------------------------------------------------
 # 应用工厂
 # ----------------------------------------------------------------------
-def create_app(template_dir: str | Path | None = None) -> FastAPI:
+def create_app(template_dir: str | Path | None = None, *,
+               desktop: bool = False) -> FastAPI:
+    """应用工厂：浏览器/CLI 与桌面宿主（calcbook.desktop）共用同一套路由。
+
+    desktop=True 只改服务面配置，不动任何 API 契约：页面与 /api 同源，因此不留
+    Vite 开发用的跨来源放行；HTTP Host 只接受回环 IPv4（宿主端口由系统分配，故不限端口）。
+    """
     app = FastAPI(title="CalcBook API", version="0.1.0")
-    # 浏览器/webview 模式与前端同源，不需要 CORS；仅放行 vite 开发服务器（web/ 开发用）。
-    # Rust 界面若用独立 dev server，把其来源加到这里的白名单即可。
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-        allow_methods=["*"], allow_headers=["*"],
-    )
+    if desktop:
+        app.add_middleware(TrustedHostMiddleware,
+                           allowed_hosts=[DESKTOP_HOST], www_redirect=False)
+    else:
+        # 浏览器/webview 模式与前端同源，不需要 CORS；仅放行 vite 开发服务器（web/ 开发用）。
+        # 桌面宿主走 desktop=True（自带专用来源规则），不经过这条白名单。
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+            allow_methods=["*"], allow_headers=["*"],
+        )
     ctx = AppContext(loader=TemplateLoader(template_dir or default_template_dir()))
     ctx.loader.scan()
     app.state.ctx = ctx
@@ -401,8 +415,7 @@ def find_free_port(host: str, port: int) -> int:
 
 
 def main(host: str = "127.0.0.1", port: int = 8317,
-         template_dir: str | Path | None = None, open_browser: bool = True,
-         ui: str = "browser") -> None:
+         template_dir: str | Path | None = None, open_browser: bool = True) -> None:
     import uvicorn
     base_port = port
     port = find_free_port(host, port)
@@ -410,75 +423,9 @@ def main(host: str = "127.0.0.1", port: int = 8317,
         print(f"端口 {base_port} 已被占用，改用 {port}", flush=True)
     url = f"http://{host}:{port}"
     print(f"CalcBook 已启动：{url}（Ctrl+C 退出）", flush=True)
-    if ui == "webview":
-        _run_webview(host, port, template_dir, url)
-        return
     if open_browser:
         webbrowser.open(url)
     uvicorn.run(create_app(template_dir), host=host, port=port, log_level="warning")
-
-
-def _run_webview(host: str, port: int, template_dir: str | Path | None, url: str) -> None:
-    """桌面窗口模式：uvicorn 跑后台线程，pywebview 开原生窗口（Win10/11 自带 WebView2）。"""
-    import threading
-    import time
-    import urllib.request
-    try:
-        import webview
-    except ImportError:
-        print("未安装 pywebview，退回浏览器模式（pip install pywebview 可启用桌面窗口）", flush=True)
-        webbrowser.open(url)
-        import uvicorn
-        uvicorn.run(create_app(template_dir), host=host, port=port, log_level="warning")
-        return
-
-    import uvicorn
-    server = uvicorn.Server(uvicorn.Config(
-        create_app(template_dir), host=host, port=port, log_level="warning"))
-    threading.Thread(target=server.run, daemon=True).start()
-
-    # 等服务真正监听后再开窗口，避免加载失败
-    for _ in range(50):
-        try:
-            urllib.request.urlopen(url, timeout=1).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-
-    # 桌面窗口里的下载（导出 HTML/MD/工程文件走 <a download>）：
-    # pywebview 默认禁止下载（DownloadStarting → Cancel），打开后弹原生另存为对话框
-    webview.settings["ALLOW_DOWNLOADS"] = True
-    webview.create_window("CalcBook 计算书", url, width=1536, height=846)
-    webview.start(lambda: threading.Thread(
-        target=_apply_window_icon, daemon=True).start())
-    server.should_exit = True
-
-
-def _apply_window_icon() -> None:
-    """WM_SETICON 设置窗口标题栏/任务栏图标（pywebview 无 icon API）。
-    打包（CalcBook.exe→venv）与源码运行均生效：图标来自包内 icon.ico。"""
-    import time
-    import ctypes
-    ico = Path(__file__).resolve().parent / "icon.ico"
-    if not ico.is_file():
-        return
-    user32 = ctypes.windll.user32
-    wm_seticon = 0x0080
-    hwnd = 0
-    for _ in range(30):  # 等窗口标题就绪（最多约 6 秒）
-        hwnd = user32.FindWindowW(None, "CalcBook 计算书")
-        if hwnd:
-            break
-        time.sleep(0.2)
-    if not hwnd:
-        return
-    try:
-        hicon = user32.LoadImageW(None, str(ico), 1, 64, 64, 0x0010)
-        if hicon:
-            user32.SendMessageW(hwnd, wm_seticon, 1, hicon)  # ICON_BIG
-            user32.SendMessageW(hwnd, wm_seticon, 0, hicon)  # ICON_SMALL
-    except OSError:
-        pass
 
 
 if __name__ == "__main__":

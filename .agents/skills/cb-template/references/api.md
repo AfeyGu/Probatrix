@@ -21,8 +21,7 @@ calcbook 基础依赖里的库时，在文件顶部写：
 __calcbook_requires__ = ["matplotlib"]   # import 名列表
 ```
 
-不声明也能跑，但用户机器缺库时只看到一屏 traceback；声明后界面提示
-「缺少依赖 + 安装指引」，离线发布包启动器启动时还会自动安装。
+声明后界面可在计算前提示「缺少依赖」并提供安装指引。模板说明应给出对应的 PyPI 包名。
 
 你只负责两件事，其余 CalcBook 全管：
 
@@ -242,8 +241,7 @@ b.image_bytes(section_fig(p.Wx, 100), caption="截面简图")
 > __calcbook_requires__ = ["matplotlib"]
 > ```
 >
-> 未声明：用户机器缺库 → 运行报一屏 traceback；声明后：界面明确提示
-> 「缺少依赖 + 安装指引」，离线发布包启动器启动时自动安装到包内 venv。
+> 声明后界面会检查 matplotlib 是否可用。Windows 便携包已预装 matplotlib，额外依赖用包内 `python/python.exe -m pip install` 安装。
 
 > **不要用 `image(path)`**：相对路径在离线导出 HTML 时会裂图。
 

@@ -56,6 +56,7 @@ function applyTheme(t) {
 }
 applyTheme(store.pref.theme)
 
+let templateSelection = null
 const runDebounced = {}
 const syncNow = () => api.putProject(currentDoc()).catch(() => {})
 const syncDebounced = debounce(syncNow, 800)      // 工程变更自动回写服务端，刷新不丢
@@ -101,18 +102,34 @@ export async function refreshTemplates() {
 }
 
 export async function selectTemplate(templateId) {
+  const project = store.project
   store.currentTemplateId = templateId
-  store.schema = await api.schema(templateId)
-  const items = itemsOf(templateId)
-  if (!items.length) {
-    await addItem(templateId)               // 打开模板即给一个默认计算项
-  } else {
-    // 刷新/切换后没有缓存结果：补算一轮，否则预览空白、导出会报「无结果」
-    for (const it of items) if (!store.results[it.id]) scheduleRun(it.id)
-  }
-  if (store.viewMode === 'single' &&
-      (!store.activeItemId || !items.some(i => i.id === store.activeItemId))) {
-    store.activeItemId = items[0].id
+  if (store.schema?.template_id !== templateId) store.schema = null
+  const selection = { templateId, schema: api.schema(templateId) }
+  templateSelection = selection
+  try {
+    const schema = await selection.schema
+    if (templateSelection !== selection) return false
+    store.schema = schema
+    if (store.project !== project) return false
+
+    const items = itemsOf(templateId)
+    if (!items.length) {
+      // 新模板的默认项由 addItem 设为当前项。
+      await addItem(templateId)
+    } else {
+      // 刷新或切换后补算无缓存结果的项，供预览和导出使用。
+      for (const item of items) if (!store.results[item.id]) scheduleRun(item.id)
+      if (store.viewMode === 'single' && !items.some(i => i.id === store.activeItemId)) {
+        store.activeItemId = items[0].id
+      }
+    }
+    return templateSelection === selection && store.project === project
+  } catch (error) {
+    if (templateSelection !== selection || store.project !== project) return false
+    throw error
+  } finally {
+    if (templateSelection === selection) templateSelection = null
   }
 }
 
@@ -136,25 +153,34 @@ export function activeItem() {
 }
 
 export async function addItem(templateId) {
-  if (!store.schema || store.schema.template_id !== templateId) {
-    store.schema = await api.schema(templateId)
+  const project = store.project
+  const selection = templateSelection
+  let schema = store.schema
+  if (schema?.template_id !== templateId) {
+    // 切换期间的加项和模板切换共用同一次参数请求。
+    schema = await (selection?.templateId === templateId ? selection.schema : api.schema(templateId))
   }
+  if (store.project !== project) return null
+
   const count = itemsOf(templateId).length + 1
   const params = {}
-  for (const p of store.schema.params) params[p.name] = p.default
+  for (const p of schema.params) params[p.name] = p.default
   const item = {
     id: crypto.randomUUID().replace(/-/g, '').slice(0, 12),
     name: defaultItemName(templateId, count),
     template_id: templateId,
-    template_hash: store.schema.hash,
+    template_hash: schema.hash,
     params,
   }
-  store.project.items.push(item)
-  store.activeItemId = item.id
+  project.items.push(item)
+  if (store.currentTemplateId === templateId) {
+    if (!store.schema && !templateSelection) store.schema = schema
+    store.activeItemId = item.id
+  }
   scheduleRun(item.id)
   syncDebounced()
   // 必须返回数组里的 reactive 代理：给原始对象赋值会绕过代理、不触发重渲染
-  return store.project.items[store.project.items.length - 1]
+  return project.items[project.items.length - 1]
 }
 
 function defaultItemName(templateId, count) {
@@ -178,11 +204,13 @@ export function copyItem(id) {
   return store.project.items[idx + 1]          // 同上：返回代理
 }
 
-// 去掉 vue 响应式代理，保证 JSON 干净
+// 去掉 vue 响应式代理，保证 JSON 干净。
+// deps（依赖模块 hash，旧工程可能已带）是工程文件契约里要保留的数据，投影不许剥。
 function toRawItem(item) {
   return JSON.parse(JSON.stringify({
     id: item.id, name: item.name, template_id: item.template_id,
     template_hash: item.template_hash, params: item.params,
+    deps: item.deps ?? {},
   }))
 }
 
@@ -301,6 +329,11 @@ export function currentDoc() {
   }
 }
 
+function projectFileDoc() {
+  // 版本与 src/calcbook/project.py 的 FORMAT_VERSION 同步。
+  return { format_version: 1, ...currentDoc() }
+}
+
 export async function putProject(doc) {
   store.project = await api.putProject(doc)
   await refreshStale()
@@ -357,7 +390,7 @@ async function ensurePermission(handle) {
 
 async function writeProjectTo(handle) {
   const writable = await handle.createWritable()
-  await writable.write(JSON.stringify(currentDoc(), null, 2))
+  await writable.write(JSON.stringify(projectFileDoc(), null, 2))
   await writable.close()
 }
 
@@ -369,7 +402,7 @@ async function restoreFileHandle() {
 /** 保存工程：有句柄则原地覆写；无句柄弹原生另存为。返回文件名，回退下载返回 null。 */
 export async function saveProjectAs() {
   if (!fsPickSupported) {
-    downloadFile(`${store.project.name || '工程'}.cbproj`, JSON.stringify(currentDoc(), null, 2))
+    downloadFile(`${store.project.name || '工程'}.cbproj`, JSON.stringify(projectFileDoc(), null, 2))
     return null
   }
   if (fileHandle) {
@@ -398,8 +431,7 @@ export async function openProjectFile(file) {
   }
   const first = store.project.items[0]
   if (first) {
-    await selectTemplate(first.template_id)
-    store.activeItemId = first.id
+    if (await selectTemplate(first.template_id)) store.activeItemId = first.id
   }
 }
 
