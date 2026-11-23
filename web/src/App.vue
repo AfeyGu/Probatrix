@@ -3,7 +3,8 @@ import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { store, refreshTemplates, selectTemplate, setView, addItem,
          saveProjectAs, openProjectFile, exportProjectHtml, exportProjectMd,
-         newBlankProject, touch, setOfflineExport, setTheme, fsPickSupported } from './store'
+         newBlankProject, touch, setOfflineExport, setTheme, fsPickSupported,
+         PROJECT_FILE_SUFFIX, PROJECT_FILE_TYPE } from './store'
 import SingleView from './components/SingleView.vue'
 import BatchView from './components/BatchView.vue'
 import WindowControls from './components/WindowControls.vue'
@@ -63,7 +64,7 @@ async function onOpenProject() {
   if (fsPickSupported) {
     try {
       const [handle] = await window.showOpenFilePicker({
-        types: [{ description: 'CalcBook 工程', accept: { 'application/json': ['.cbproj', '.json'] } }],
+        types: [PROJECT_FILE_TYPE],
       })
       await openProjectFile(handle)
       ElMessage.success(`已打开：${store.project.name}`)
@@ -156,13 +157,13 @@ function ratioOf(item) {
     <el-header height="48px" class="header" :class="{ 'desktop-header': desktopWindow }"
                :data-tauri-drag-region="desktopWindow ? '' : undefined">
       <div class="hgroup">
-        <span class="brand" :data-tauri-drag-region="desktopWindow ? '' : undefined">CalcBook</span>
+        <span class="brand" :data-tauri-drag-region="desktopWindow ? '' : undefined">Probatrix</span>
         <el-input v-model="store.project.name" class="proj-name" placeholder="工程名"
                   @change="touch" />
       </div>
       <div class="hgroup">
         <el-button @click="onNewProject">新建</el-button>
-        <input ref="fileInput" type="file" accept=".cbproj,.json" hidden @change="onOpenFile" />
+        <input ref="fileInput" type="file" :accept="PROJECT_FILE_SUFFIX" hidden @change="onOpenFile" />
         <el-button @click="onOpenProject">打开</el-button>
         <el-button @click="onSaveProject">保存工程</el-button>
       </div>
@@ -258,7 +259,7 @@ function ratioOf(item) {
 </template>
 
 <style>
-/* ============ CalcBook 设计令牌（v2-pro 通透体系，规范见 docs/ui-design.md）============
+/* ============ Probatrix 设计令牌（v2-pro 通透体系，规范见 docs/ui-design.md）============
    三档半径 · 三级材质 · 全按钮无突出色 · 光自上来。主题切换 = 换 data-theme 下的色组。 */
 :root {
   /* 画布与色斑（body 三团 radial 渐变叠加在画布上） */

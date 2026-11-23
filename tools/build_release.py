@@ -1,4 +1,4 @@
-"""构建 Windows x64 便携版。解压后从 CalcBook.exe 启动，目标机需要 WebView2。
+"""构建 Windows x64 便携版。解压后从 Probatrix.exe 启动，目标机需要 WebView2。
 
 在 Windows 上使用 Python 3.11+、build 与 Rust MSVC 工具链构建。
 产物含 Tauri 窗口、嵌入式 Python、示例模板、模板文档和使用说明。
@@ -39,9 +39,9 @@ def build_wheel(output: Path) -> Path:
     # 从源码归档构建 wheel，隔离工作树 build/ 中的旧包文件。
     subprocess.run([sys.executable, "-m", "build", "--outdir", str(output)],
                    cwd=ROOT, check=True)
-    wheels = list(output.glob("calcbook-*.whl"))
+    wheels = list(output.glob("probatrix-*.whl"))
     if len(wheels) != 1:
-        raise SystemExit(f"应生成一个 CalcBook wheel，找到 {len(wheels)} 个")
+        raise SystemExit(f"应生成一个 Probatrix wheel，找到 {len(wheels)} 个")
     return wheels[0]
 
 
@@ -52,7 +52,7 @@ def build_desktop() -> Path:
                     "--manifest-path", str(TAURI / "Cargo.toml"),
                     "--target", WINDOWS_TARGET, "--target-dir", str(target_dir)],
                    cwd=ROOT, check=True)
-    return target_dir / WINDOWS_TARGET / "release" / "CalcBook.exe"
+    return target_dir / WINDOWS_TARGET / "release" / "Probatrix.exe"
 
 
 def fetch_embed_python(dest: Path, download: Path) -> None:
@@ -87,15 +87,15 @@ def setup_python(python_dir: Path) -> Path:
 
 
 def preinstall(python_exe: Path, whl: Path) -> None:
-    """用预构建 wheel 安装 CalcBook 及常用模板库。"""
+    """用预构建 wheel 安装 Probatrix 及常用模板库。"""
     subprocess.run([str(python_exe), "-m", "pip", "install", "--only-binary=:all:",
                     "--no-warn-script-location", "--progress-bar", "off",
                     str(whl), *PREINSTALL], check=True)
 
 
 def verify_runtime(python_exe: Path) -> None:
-    code = ("import calcbook.desktop, numpy, scipy, pandas, matplotlib, openpyxl\n"
-            "print('CalcBook ' + calcbook.__version__)")
+    code = ("import probatrix.desktop, numpy, scipy, pandas, matplotlib, openpyxl\n"
+            "print('Probatrix ' + probatrix.__version__)")
     subprocess.run([str(python_exe), "-c", code], check=True,
                    timeout=60, cwd=python_exe.parent)
     subprocess.run([str(python_exe), "-m", "pip", "check"], check=True, timeout=60)
@@ -114,28 +114,28 @@ def trim_site_packages(python_dir: Path) -> None:
 
 def assemble(app: Path, exe: Path, tag: str) -> None:
     print("==> 组装便携目录")
-    site = app / "python" / "Lib" / "site-packages" / "calcbook"
+    site = app / "python" / "Lib" / "site-packages" / "probatrix"
     for rel in ("web/index.html", "vendor/katex/katex.min.css"):
         if not (site / rel).is_file():
             raise SystemExit(f"包内缺少 {rel}。请先在 web/ 下执行 npm run build。")
     (app / "examples").mkdir()
-    shutil.copy2(exe, app / "CalcBook.exe")
+    shutil.copy2(exe, app / "Probatrix.exe")
     for tpl in sorted((ROOT / "examples").glob("*.py")):
         shutil.copy2(tpl, app / "examples" / tpl.name)
     shutil.copytree(ROOT / "docs", app / "docs")
     (app / "使用说明.txt").write_text(
-        f"""CalcBook {tag} · Windows x64 便携版
+        f"""Probatrix {tag} · Windows x64 便携版
 
 在已安装 Microsoft Edge WebView2 Runtime 的 Windows 10/11 x64 上，完整解压后双击
-CalcBook.exe。移动时请保留整个目录。Python {PY_VERSION}、计算界面、常用计算库和
+Probatrix.exe。移动时请保留整个目录。Python {PY_VERSION}、计算界面、常用计算库和
 示例模板均随包提供，运行内置示例无需联网。导出时可在菜单勾选「导出离线版」。
 
-将自定义模板和配套数据文件放进 examples/。模板需要额外的库时，退出 CalcBook，
+将自定义模板和配套数据文件放进 examples/。模板需要额外的库时，退出 Probatrix，
 在解压目录用包内 Python 安装（将「包名」换成模板文档里的 PyPI 包名）：
   .\\python\\python.exe -m pip install 包名
 
-工程请保存为 .cbproj 文件，重启后可重新打开。日志位于
-%LOCALAPPDATA%\\com.calcbook.desktop\\logs\\calcbook-desktop.log。
+工程请保存为 .pbproj 文件，重启后可重新打开。日志位于
+%LOCALAPPDATA%\\io.github.afeygu.probatrix\\logs\\probatrix-desktop.log。
 模板开发指南见 docs/模板开发指南.md。
 """, encoding="utf-8")
 
@@ -144,10 +144,10 @@ def main() -> None:
     if sys.platform != "win32":
         raise SystemExit("请在 Windows 上构建便携包。")
     tag = version()
-    print(f"==> CalcBook Windows x64 便携版 {tag}（内置 Python {PY_VERSION}）")
+    print(f"==> Probatrix Windows x64 便携版 {tag}（内置 Python {PY_VERSION}）")
     RELEASE.mkdir(exist_ok=True)
-    zip_path = RELEASE / f"calcbook-{tag}-windows-x64-portable.zip"
-    with TemporaryDirectory(prefix="calcbook-build-", dir=RELEASE) as tmp:
+    zip_path = RELEASE / f"probatrix-{tag}-windows-x64-portable.zip"
+    with TemporaryDirectory(prefix="probatrix-build-", dir=RELEASE) as tmp:
         work = Path(tmp)
         exe = build_desktop()
         whl = build_wheel(work / "wheel")
@@ -156,7 +156,7 @@ def main() -> None:
         print(f"==> 准备内置 Python {PY_VERSION}")
         fetch_embed_python(pydir, work / "python-embed.zip")
         pyexe = setup_python(pydir)
-        print("==> 预装 CalcBook 及常用模板库")
+        print("==> 预装 Probatrix 及常用模板库")
         preinstall(pyexe, whl)
         trim_site_packages(pydir)
         verify_runtime(pyexe)

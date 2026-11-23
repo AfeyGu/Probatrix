@@ -1,4 +1,4 @@
-"""契约验证：Field 元信息、@template 注册、CalcBook 渲染与 check 闭环、示例模板端到端。"""
+"""契约验证：Field 元信息、@template 注册、Probatrix 渲染与 check 闭环、示例模板端到端。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from calcbook import CalcBook, Field, param_meta, template
+from probatrix import Probatrix, Field, param_meta, template
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -52,10 +52,10 @@ def test_param_meta_extracts_field_metadata() -> None:
 # ----------------------------------------------------------------------
 def test_template_attaches_meta() -> None:
     @template("演示模板", description="d", manual=True)
-    def calc(p: DemoParams) -> CalcBook:
-        return CalcBook()
+    def calc(p: DemoParams) -> Probatrix:
+        return Probatrix()
 
-    meta = calc.__calcbook_template__  # type: ignore[attr-defined]
+    meta = calc.__probatrix_template__  # type: ignore[attr-defined]
     assert meta.name == "演示模板"
     assert meta.description == "d"
     assert meta.manual is True
@@ -66,15 +66,15 @@ def test_template_requires_pydantic_annotation() -> None:
     with pytest.raises(TypeError):
         @template("坏模板")
         def bad(p):  # 缺类型注解
-            return CalcBook()
+            return Probatrix()
 
 
 def test_template_run_and_validate() -> None:
     @template("运行模板")
-    def calc(p: DemoParams) -> CalcBook:
-        return CalcBook().p(p.steel)
+    def calc(p: DemoParams) -> Probatrix:
+        return Probatrix().p(p.steel)
 
-    meta = calc.__calcbook_template__
+    meta = calc.__probatrix_template__
     params = meta.make_params({"steel": "Q355B"})
     assert params.steel == "Q355B"
     with pytest.raises(ValidationError):
@@ -82,10 +82,10 @@ def test_template_run_and_validate() -> None:
 
 
 # ----------------------------------------------------------------------
-# CalcBook：渲染与 check 闭环
+# Probatrix：渲染与 check 闭环
 # ----------------------------------------------------------------------
-def test_calcbook_markdown_structure() -> None:
-    b = CalcBook(title="T")
+def test_probatrix_markdown_structure() -> None:
+    b = Probatrix(title="T")
     b.h2("1. 验算")
     b.formula(r"\sigma \le f", cite=("GB 50017-2017", "4.1.1"))
     b.subs(r"\sigma = 150.2")
@@ -98,7 +98,7 @@ def test_calcbook_markdown_structure() -> None:
 
 
 def test_check_pass_and_fail() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.check("抗弯强度", value=150.2, limit=215, unit="N/mm²")
     b.check("稳定", value=230, limit=215, unit="N/mm²")
     md = b.to_markdown()
@@ -114,7 +114,7 @@ def test_check_pass_and_fail() -> None:
 
 
 def test_check_ge_op() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.check("最小配筋", value=1.2, limit=1.0, op="ge")
     assert b.all_ok is True
     assert b.max_ratio == pytest.approx(1.0 / 1.2)  # ge 时 ratio=limit/value
@@ -126,7 +126,7 @@ def test_check_zero_denominator_gives_none_ratio() -> None:
     验算下限为 0（如限值=0、下限=0）在结构计算里常见；check 是模板最常调用的
     接口，不能因算术边界炸掉整个计算书。
     """
-    b = CalcBook()
+    b = Probatrix()
     b.check("限值为零", value=-1, limit=0)              # le：value/limit 除零保护
     b.check("下限为零", value=0, limit=0, op="ge")      # ge：limit/value 除零保护
     assert b.checks[0].ratio is None and b.checks[0].passed is True
@@ -135,7 +135,7 @@ def test_check_zero_denominator_gives_none_ratio() -> None:
     assert "比值 —" in b.to_markdown()                  # 比值列显示占位符
 
     # ge 且分母非零仍正常算比值；显式 ratio 原样生效
-    b2 = CalcBook()
+    b2 = Probatrix()
     b2.check("下限为零", value=5, limit=0, op="ge")
     assert b2.checks[0].ratio == 0
     b2.check("显式", value=140, limit=140, ratio=1.0)
@@ -143,7 +143,7 @@ def test_check_zero_denominator_gives_none_ratio() -> None:
 
 
 def test_image_and_table() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.image("img/section.png", caption="截面简图")
     b.table(["A", "B"], [[1, 2]])
     md = b.to_markdown()
@@ -152,7 +152,7 @@ def test_image_and_table() -> None:
 
 
 def test_image_bytes_datauri() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.image_bytes(b"\x89PNG-fake", caption="简图")
     md = b.to_markdown()
     assert md.startswith("![简图](data:image/png;base64,")
@@ -174,8 +174,8 @@ def _load_example(name: str):
 
 def test_example_gl_end_to_end() -> None:
     mod = _load_example("gl")
-    metas = [m.__calcbook_template__ for m in vars(mod).values()
-             if hasattr(m, "__calcbook_template__")]
+    metas = [m.__probatrix_template__ for m in vars(mod).values()
+             if hasattr(m, "__probatrix_template__")]
     assert len(metas) == 1
     meta = metas[0]
     assert meta.template_id == ""  # 加载器负责填，契约层不填

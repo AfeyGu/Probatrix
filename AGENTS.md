@@ -1,6 +1,6 @@
 # AGENTS.md
 
-CalcBook——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端，pip 分发，`calcbook serve` 一条命令起本地服务。
+Probatrix——结构构件批量计算书工具。FastAPI 后端 + Vue3 前端，pip 分发，`probatrix serve` 一条命令起本地服务。
 
 ## 常用命令
 
@@ -9,50 +9,50 @@ pip install -e .                      # 可编辑安装（改后端代码即时�
 python -m pytest tests -q             # Python 契约、API、桌面后台、工程文件与模板回归
 python -m pytest tests/test_server.py::test_run_batch -q   # 单个测试
 
-calcbook serve --templates examples --port 8317 --no-browser   # 起本地服务
-calcbook serve --templates <目录>      # 生产形态：自动开浏览器，默认端口 8317
+probatrix serve --templates examples --port 8317 --no-browser   # 起本地服务
+probatrix serve --templates <目录>      # 生产形态：自动开浏览器，默认端口 8317
 
 cd web
 npm install                           # 仅前端开发需要 Node
 npm run dev                           # vite:5173，/api 代理到 127.0.0.1:8317
-npm run build                         # 构建到 src/calcbook/web/ 并拷贝 vendor-katex
+npm run build                         # 构建到 src/probatrix/web/ 并拷贝 vendor-katex
 ```
 
-- **打包验证**：`pip wheel --no-deps -w _wheelcheck .`（wheel 应 ~2.4 MB，含 `src/calcbook/web` 与 `src/calcbook/vendor`，用完删 `_wheelcheck/`）。
-- **Windows x64 便携包**：安装 Rust MSVC 工具链与 `pip install build`，运行 `python tools/build_release.py`，产出 `release/calcbook-<版本>-windows-x64-portable.zip`。 [构建说明](README.md#构建-windows-便携包)
-- **Tauri 宿主测试**：`cargo test --locked --manifest-path src-tauri/Cargo.toml`。Windows 上可用 `CALCBOOK_TEST_PYTHON` 指向实际 Python 解释器。
-- 服务端 Python 代码改动需重启服务；`src/calcbook/web`、`src/calcbook/vendor` 由构建产出，**不要手改**。
+- **打包验证**：`pip wheel --no-deps -w _wheelcheck .`（wheel 应 ~2.4 MB，含 `src/probatrix/web` 与 `src/probatrix/vendor`，用完删 `_wheelcheck/`）。
+- **Windows x64 便携包**：安装 Rust MSVC 工具链与 `pip install build`，运行 `python tools/build_release.py`，产出 `release/probatrix-<版本>-windows-x64-portable.zip`。 [构建说明](README.md#构建-windows-便携包)
+- **Tauri 宿主测试**：`cargo test --locked --manifest-path src-tauri/Cargo.toml`。Windows 上可用 `PROBATRIX_TEST_PYTHON` 指向实际 Python 解释器。
+- 服务端 Python 代码改动需重启服务；`src/probatrix/web`、`src/probatrix/vendor` 由构建产出，**不要手改**。
 - 打包配置在 `pyproject.toml`（package-data 含 web/vendor）+ `MANIFEST.in`，两者要同步维护。
 
 ## 架构（数据流）
 
 ```
 Windows 桌面入口（src-tauri/）
-  → 无控制台启动 calcbook.desktop，监听就绪后回报本机端口给 Tauri
+  → 无控制台启动 probatrix.desktop，监听就绪后回报本机端口给 Tauri
   → WebView2 从该端口打开 server.py 托管的 Vue 界面，走现有 /api
   → 主界面挂载自绘顶栏后隐藏系统标题栏，仅当前主 WebView 与本次回环地址可调用窗口操作
   → 关窗关闭 stdin 管道，通知 Python 正常停机
 
 模板文件（examples/gl.py）
   → loader.py    目录扫描，importlib 导入（报错隔离到 errors，不打断其他文件），
-                 收集 __calcbook_template__ 标记，填 template_id = "文件名.函数名"，算 sha256；
-                 读模块级 __calcbook_requires__ 声明并查环境（find_spec），缺的记入 meta.missing_deps
+                 收集 __probatrix_template__ 标记，填 template_id = "文件名.函数名"，算 sha256；
+                 读模块级 __probatrix_requires__ 声明并查环境（find_spec），缺的记入 meta.missing_deps
   → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
                  失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
                  模板函数声明可选 name 形参时，计算项「名称」作项目编号传入
-  → calcbook.py  CalcBook Builder：formula/subs/check/cite/image/table → items；
+  → probatrix.py Probatrix Builder：formula/subs/check/cite/image/table → items；
                  to_html() 直出 HTML（预览/导出用）、to_markdown() 纯导出物（下载阅读）；
                  check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio；
                  metric(name, 值)：批量表格附加指标列（不进正文，随 RunResult.metrics 到前端动态成列）
   → server.py    FastAPI：/api/templates、/api/run(-batch)（响应含 html）、/api/project、
                  /api/hash-check、/api/export/html（收前端拼好的 html）、/api/doc.css；
-                 静态托管 src/calcbook/web
+                 静态托管 src/probatrix/web
   → web/ (Vue3)  store.js 单一状态源；参数变更防抖 300ms 自动重算；工程 800ms 防抖回写服务端
                  （刷新页面不丢）；预览直接用 run 返回的 html（KaTeX 扫描）；导出：HTML 走
                  api.exportHtml（多项合并时前端拼 page-break div；勾选离线版则 inline_assets=true），
                  Markdown 直接前端下载（md 为纯导出物，不参与渲染）；
                  界面主题/离线偏好存 localStorage
-  → project.py   .cbproj 纯 JSON：items[{id,name,template_id,template_hash,params,deps}] + views
+  → project.py   .pbproj 纯 JSON：items[{id,name,template_id,template_hash,params,deps}] + views
   → docstyle.py  计算书文档排版 CSS（.cb-doc）唯一定义处：预览经 /api/doc.css 加载，
                  导出模板注入 @@DOCSTYLE@@——保证所见即所得，不要在别处复制这份样式
 ```
@@ -62,15 +62,15 @@ Windows 桌面入口（src-tauri/）
 - **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
   同轮同步相关 md（`AGENTS.md` 架构图、`计算书工具文档.md`、`docs/模板开发指南.md`、
   `README.md`），不能只改代码。
-- **模板第三方依赖用 `__calcbook_requires__` 声明**（模块级 import 名列表，可选）：
+- **模板第三方依赖用 `__probatrix_requires__` 声明**（模块级 import 名列表，可选）：
   loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
   前端下拉标注）；run 前拦截给「缺少依赖 + pip 指引」；engine 另兜底 ModuleNotFoundError
   （解析 `No module named 'X'`，给出缺库名）。便携版用户通过包内 `python/python.exe -m pip install` 安装所需的 PyPI 包。
-- **Windows 便携包**由 `tools/build_release.py` 组装。`CalcBook.exe` 是 Tauri Release，
-  同目录的 `python/` 内含嵌入版 Python 3.12、pip、CalcBook、numpy/scipy/pandas/matplotlib/openpyxl。
+- **Windows 便携包**由 `tools/build_release.py` 组装。`Probatrix.exe` 是 Tauri Release，
+  同目录的 `python/` 内含嵌入版 Python 3.12、pip、Probatrix、numpy/scipy/pandas/matplotlib/openpyxl。
   `examples/` 放模板，`docs/` 放模板指南。wheel 供构建时安装进包内 Python。
   目标机需装 WebView2，解压即可离线使用内置示例。日志及 WebView2 缓存保存在本机应用数据目录。
-- **契约是产品核心**：模板作者只 import `CalcBook / Field / template` 三个名字（`src/calcbook/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden/row/show_if` 同时驱动前端表单、批量表格列、.cbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回；row：声明相邻且同标记的参数在单件表单并排一行；show_if：条件显隐小表达式，不满足时表单隐藏但值保留，批量侧降级为默认隐藏列——它只是界面提示，开关想改变计算需模板计算里自己分支）。
+- **契约是产品核心**：模板作者只 import `Probatrix / Field / template` 三个名字（`src/probatrix/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden/row/show_if` 同时驱动前端表单、批量表格列、.pbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回；row：声明相邻且同标记的参数在单件表单并排一行；show_if：条件显隐小表达式，不满足时表单隐藏但值保留，批量侧降级为默认隐藏列——它只是界面提示，开关想改变计算需模板计算里自己分支）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
 - **统一设置是批量赋值操作**：每行 params 始终存完整值，无隐藏状态。
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。
@@ -106,5 +106,5 @@ Windows 桌面入口（src-tauri/）
 
 - 中文提交信息，小步聚焦；前缀风格：`init: 范围`、`feat: …`、`fix: …`、`chore: …`、`docs: …`、`test: …`。
 - `.gitattributes` 强制 LF、字体图片标 binary——新加二进制类型记得补。
-- `src/calcbook/web` 与 `src/calcbook/vendor` 是**提交入库的构建产物**（使 pip 安装的使用侧无需 Node），改动前端后必须 `npm run build` 再提交。
+- `src/probatrix/web` 与 `src/probatrix/vendor` 是**提交入库的构建产物**（使 pip 安装的使用侧无需 Node），改动前端后必须 `npm run build` 再提交。
 - 杀本地服务进程按端口找 PID（`netstat -ano | findstr :8317` → `taskkill /F /PID <pid>`），**禁止** `taskkill /IM python.exe`。

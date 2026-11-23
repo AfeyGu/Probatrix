@@ -23,10 +23,10 @@ import math
 
 from pydantic import BaseModel
 
-from calcbook import CalcBook, Field, template
+from probatrix import Probatrix, Field, template
 
 #: 运行本模板所需的导入名，用于界面检查依赖。Windows 便携包预装 matplotlib。
-__calcbook_requires__ = ["matplotlib"]
+__probatrix_requires__ = ["matplotlib"]
 
 # ----------------------------------------------------------------------
 # 材料常数（等级 → 常数映射）
@@ -164,7 +164,7 @@ class CanopyParams(BaseModel):
     "雨篷板计算",
     description="悬臂雨篷板：荷载弯矩 + 配筋设计 + 裂缝验算（GB 50010-2010 2015年版）",
 )
-def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
+def calc(p: CanopyParams, *, name: str = "") -> Probatrix:
     """name：批量行的「名称」列，用作计算书的项目编号；未填时显示「未命名」。"""
     canopy_no = name or "未命名"
     fc, ft, ftk, Ec = CONCRETE[p.concrete]
@@ -250,7 +250,7 @@ def calc(p: CanopyParams, *, name: str = "") -> CalcBook:
     w_lim = 0.20                                    # 裂缝宽度限值（mm）
 
     # ---- 计算书 ----
-    b = CalcBook(title=f"雨篷板计算书 · {canopy_no}")
+    b = Probatrix(title=f"雨篷板计算书 · {canopy_no}")
     b.metric("根部配筋", f"Φ{dia_pick}@{sp_pick}")
     b.metric("实配钢筋", f"Φ{int(p.dia)}@{int(p.s)}")
     b.metric("裂缝宽度", f"{w_max:.3f} mm")

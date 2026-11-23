@@ -1,7 +1,7 @@
 """模板：板式楼梯计算（现浇梯段板）。
 
 由《楼梯计算 v1.xlsm》移植：
-- 「设置」表（通用参数 + 选筋表）→ CalcBook 参数组 + 模块内置选筋表；
+- 「设置」表（通用参数 + 选筋表）→ Probatrix 参数组 + 模块内置选筋表；
 - 「列表」表（每跑楼梯一行）→ 批量行参数（支座形式做成下拉菜单）；
 - 「模板」sheet（计算书）→ 下面的计算书章节，计算内容一一对应：
   1. 梯段板荷载（三角形踏步 / 板厚 / 面层 / 底面抹灰 / 栏杆，水平投影每 m²）；
@@ -30,7 +30,7 @@ import math
 
 from pydantic import BaseModel
 
-from calcbook import CalcBook, Field, template
+from probatrix import Probatrix, Field, template
 
 # ----------------------------------------------------------------------
 # 材料常数（等级 → 常数映射）
@@ -168,7 +168,7 @@ class StairParams(BaseModel):
     "板式楼梯计算",
     description="现浇板式楼梯梯段板：荷载、配筋、裂缝与挠度（GB/T 50010-2010 2024年版）",
 )
-def calc(p: StairParams, *, name: str = "") -> CalcBook:
+def calc(p: StairParams, *, name: str = "") -> Probatrix:
     """name：批量行的「名称」列，用作计算书的项目编号；未填时显示「未命名」。"""
     stair_no = name or "未命名"
     fc, ftk, Ec = CONCRETE[p.concrete]
@@ -280,7 +280,7 @@ def calc(p: StairParams, *, name: str = "") -> CalcBook:
         return f"{v:.3f}"
 
     # ---- 计算书 ----
-    b = CalcBook(title=f"楼梯计算书 · {stair_no}")
+    b = Probatrix(title=f"楼梯计算书 · {stair_no}")
     for s in secs:
         b.metric(f"{s['tag']}配筋", f"Φ{s['dia']}@{s['sp']}")
 

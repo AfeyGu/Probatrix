@@ -1,12 +1,12 @@
 [package]
-name = "calcbook-desktop"
+name = "probatrix-desktop"
 version = "0.1.0"
-description = "CalcBook Windows 桌面宿主（Tauri 2）"
+description = "Probatrix Windows 桌面宿主（Tauri 2）"
 edition = "2021"
 publish = false
 
 [[bin]]
-name = "CalcBook"
+name = "Probatrix"
 path = "src/main.rs"
 
 [build-dependencies]

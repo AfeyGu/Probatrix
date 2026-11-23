@@ -1,6 +1,6 @@
 # 钢梁计算书预览（examples/gl.py 产物）
 
-> 由 calcbook 契约层渲染的 Markdown 源码；在 Obsidian/前端 KaTeX 中，
+> 由 probatrix 契约层渲染的 Markdown 源码；在 Obsidian/前端 KaTeX 中，
 > $$...$$ 会渲染为数学公式，「依据」行渲染为引用块。
 > 两个算例：默认参数（满足）与超载 Mx=500（不满足）。
 

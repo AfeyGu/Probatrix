@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <!--
-  CalcBook 桌面宿主的本机启动/错误页（只由宿主载入，随后被导航到 http://127.0.0.1:<port>/）。
-  无外部依赖、无 Tauri IPC：失败原因由宿主调用 __calcbookFail 投递。
+  Probatrix 桌面宿主的本机启动/错误页（只由宿主载入，随后被导航到 http://127.0.0.1:<port>/）。
+  无外部依赖、无 Tauri IPC：失败原因由宿主调用 __probatrixFail 投递。
   外观沿用 docs/ui-design.md 的令牌（画布 + Mica 玻璃卡 + 三档半径），两处数值保持一致。
 -->
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CalcBook</title>
+  <title>Probatrix</title>
   <script>
     // 宿主在启动失败时调用。定义在 <head> 里，尽量在宿主 eval 之前就存在；
     // 若调用时 DOM 还没解析完，先记住参数，等 DOMContentLoaded 再应用。
@@ -25,10 +25,10 @@
         document.getElementById('log-path').textContent =
           (info && info.logPath) || '（未取到日志路径）';
         document.body.classList.add('failed');
-        document.title = 'CalcBook — 启动失败';
+        document.title = 'Probatrix — 启动失败';
       }
 
-      window.__calcbookFail = apply;
+      window.__probatrixFail = apply;
       document.addEventListener('DOMContentLoaded', function () {
         if (pending) apply(pending);
       });
@@ -182,7 +182,7 @@
 </head>
 <body>
   <main class="card">
-    <div class="brand">CalcBook</div>
+    <div class="brand">Probatrix</div>
 
     <div class="waiting">
       <h1>正在启动本地计算服务</h1>
@@ -191,7 +191,7 @@
     </div>
 
     <div class="error">
-      <h1>无法启动 CalcBook</h1>
+      <h1>无法启动 Probatrix</h1>
       <pre class="message" id="message"></pre>
       <p class="log-path">日志：<code id="log-path"></code></p>
       <p class="hint">关闭本窗口后重新打开即可重试；若反复出现，请把日志文件发给维护者。</p>

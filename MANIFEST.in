@@ -1,2 +1,2 @@
-recursive-include src/calcbook/web *
-recursive-include src/calcbook/vendor *
+recursive-include src/probatrix/web *
+recursive-include src/probatrix/vendor *

@@ -123,7 +123,7 @@ pub fn install(window: &WebviewWindow, log: Arc<Log>) {
 
     // 退路：装饰切换万一没有窗口事件，建窗后短时间内补查几次，装上即止。
     let spawned = thread::Builder::new()
-        .name("calcbook-frame".into())
+        .name("probatrix-frame".into())
         .spawn(move || shared.settle_after_startup());
     if let Err(err) = spawned {
         log.write("host", &format!("无法创建窗口圆角补查线程：{err}"));

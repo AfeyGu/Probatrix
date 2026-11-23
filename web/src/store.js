@@ -9,6 +9,14 @@
 import { reactive } from 'vue'
 import { api } from './api'
 
+// 工程文件版本与 src/probatrix/project.py 的 FORMAT_VERSION 同步。
+const PROJECT_FORMAT_VERSION = 1
+export const PROJECT_FILE_SUFFIX = '.pbproj'
+export const PROJECT_FILE_TYPE = {
+  description: 'Probatrix 工程',
+  accept: { 'application/x-probatrix-project+json': [PROJECT_FILE_SUFFIX] },
+}
+
 function debounce(fn, ms) {
   let t = null
   return (...args) => {
@@ -34,20 +42,20 @@ export const store = reactive({
 
   /** 导出偏好：离线版内嵌 KaTeX（~0.7 MB/文件，断网可看）；界面主题（浅色多套） */
   pref: {
-    offlineExport: localStorage.getItem('calcbook.offline') === '1',
-    theme: localStorage.getItem('calcbook.theme') || 'notion',
+    offlineExport: localStorage.getItem('probatrix.offline') === '1',
+    theme: localStorage.getItem('probatrix.theme') || 'notion',
   },
 })
 
 export function setOfflineExport(v) {
   store.pref.offlineExport = v
-  localStorage.setItem('calcbook.offline', v ? '1' : '0')
+  localStorage.setItem('probatrix.offline', v ? '1' : '0')
 }
 
 /** 主题切换 = 换一组 --cb-* 变量值（见 App.vue 的 data-theme 块） */
 export function setTheme(t) {
   store.pref.theme = t
-  localStorage.setItem('calcbook.theme', t)
+  localStorage.setItem('probatrix.theme', t)
   applyTheme(t)
 }
 
@@ -330,8 +338,7 @@ export function currentDoc() {
 }
 
 function projectFileDoc() {
-  // 版本与 src/calcbook/project.py 的 FORMAT_VERSION 同步。
-  return { format_version: 1, ...currentDoc() }
+  return { format_version: PROJECT_FORMAT_VERSION, ...currentDoc() }
 }
 
 export async function putProject(doc) {
@@ -357,7 +364,7 @@ let fileHandle = null
 
 function idb() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('calcbook', 1)
+    const req = indexedDB.open('probatrix', 1)
     req.onupgradeneeded = () => req.result.createObjectStore('kv')
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -396,13 +403,13 @@ async function writeProjectTo(handle) {
 
 async function restoreFileHandle() {
   if (!fsPickSupported) return
-  try { fileHandle = (await idbGet('cbproj-handle')) || null } catch { fileHandle = null }
+  try { fileHandle = (await idbGet('pbproj-handle')) || null } catch { fileHandle = null }
 }
 
 /** 保存工程：有句柄则原地覆写；无句柄弹原生另存为。返回文件名，回退下载返回 null。 */
 export async function saveProjectAs() {
   if (!fsPickSupported) {
-    downloadFile(`${store.project.name || '工程'}.cbproj`, JSON.stringify(projectFileDoc(), null, 2))
+    downloadFile(`${store.project.name || '工程'}${PROJECT_FILE_SUFFIX}`, JSON.stringify(projectFileDoc(), null, 2))
     return null
   }
   if (fileHandle) {
@@ -411,11 +418,11 @@ export async function saveProjectAs() {
     return fileHandle.name
   }
   fileHandle = await window.showSaveFilePicker({
-    suggestedName: `${store.project.name || '工程'}.cbproj`,
-    types: [{ description: 'CalcBook 工程', accept: { 'application/json': ['.cbproj', '.json'] } }],
+    suggestedName: `${store.project.name || '工程'}${PROJECT_FILE_SUFFIX}`,
+    types: [PROJECT_FILE_TYPE],
   })
   await writeProjectTo(fileHandle)
-  await idbSet('cbproj-handle', fileHandle)
+  await idbSet('pbproj-handle', fileHandle)
   return fileHandle.name
 }
 
@@ -424,10 +431,13 @@ export async function openProjectFile(file) {
   const handle = file?.getFile ? file : null
   const blob = handle ? await handle.getFile() : file
   const doc = JSON.parse(await blob.text())       // 解析失败让上层提示
+  if (doc?.format_version !== PROJECT_FORMAT_VERSION) {
+    throw new Error(`工程文件版本不支持（需要版本 ${PROJECT_FORMAT_VERSION}）`)
+  }
   await putProject(doc)
   if (handle) {
     fileHandle = handle
-    await idbSet('cbproj-handle', handle)
+    await idbSet('pbproj-handle', handle)
   }
   const first = store.project.items[0]
   if (first) {
@@ -442,7 +452,7 @@ export async function newBlankProject() {
   store.staleIds = new Set()
   store.activeItemId = null
   fileHandle = null
-  if (fsPickSupported) { try { await idbSet('cbproj-handle', null) } catch { /* 忽略 */ } }
+  if (fsPickSupported) { try { await idbSet('pbproj-handle', null) } catch { /* 忽略 */ } }
   syncNow()
 }
 

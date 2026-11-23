@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from calcbook.engine import run_template
-from calcbook.loader import TemplateLoader, file_hash
-from calcbook.project import (
+from probatrix.engine import run_template
+from probatrix.loader import TemplateLoader, file_hash
+from probatrix.project import (
     CalcItem,
     new_project,
     load_project,
@@ -94,12 +94,12 @@ def test_loader_plain_data_module(tmp_path: Path) -> None:
     (tmp_path / "use_dep.py").write_text(
         "import Hsteel\n"                      # 模板引同目录数据模块
         "from pydantic import BaseModel\n"
-        "from calcbook import CalcBook, template\n"
+        "from probatrix import Probatrix, template\n"
         "class P(BaseModel):\n"
         "    model: str = 'HN400x200'\n"
         "@template('用依赖的模板')\n"
-        "def calc(p: P) -> CalcBook:\n"
-        "    return CalcBook().p(str(Hsteel.TABLE[p.model]['Wx']))\n",
+        "def calc(p: P) -> Probatrix:\n"
+        "    return Probatrix().p(str(Hsteel.TABLE[p.model]['Wx']))\n",
         encoding="utf-8",
     )
     loader = TemplateLoader(tmp_path)
@@ -120,12 +120,12 @@ def test_loader_data_modules_do_not_leak_across_dirs(tmp_path: Path) -> None:
     tpl = (
         "import Hsteel\n"
         "from pydantic import BaseModel\n"
-        "from calcbook import CalcBook, template\n"
+        "from probatrix import Probatrix, template\n"
         "class P(BaseModel):\n"
         "    x: float = 1\n"
         "@template('用数据模块')\n"
-        "def calc(p: P) -> CalcBook:\n"
-        "    return CalcBook().p(str(Hsteel.WX))\n"
+        "def calc(p: P) -> Probatrix:\n"
+        "    return Probatrix().p(str(Hsteel.WX))\n"
     )
     dirs = []
     for name, wx in (("a", 1111), ("b", 2222)):
@@ -152,8 +152,8 @@ def test_loader_data_modules_do_not_leak_across_dirs(tmp_path: Path) -> None:
 def _gl_meta():
     mod = _load_example("gl")
     return next(
-        m.__calcbook_template__ for m in vars(mod).values()
-        if hasattr(m, "__calcbook_template__")
+        m.__probatrix_template__ for m in vars(mod).values()
+        if hasattr(m, "__probatrix_template__")
     )
 
 
@@ -178,18 +178,18 @@ def test_run_template_crash_captured(tmp_path: Path) -> None:
     """计算中途抛异常：traceback 原样进 error，不向上抛。"""
     (tmp_path / "crash.py").write_text(
         "from pydantic import BaseModel\n"
-        "from calcbook import CalcBook, template\n"
+        "from probatrix import Probatrix, template\n"
         "class P(BaseModel):\n"
         "    x: float = 1\n"
         "@template('崩')\n"
-        "def calc(p: P) -> CalcBook:\n"
+        "def calc(p: P) -> Probatrix:\n"
         "    return 1 / 0\n",
         encoding="utf-8",
     )
     spec = importlib.util.spec_from_file_location("crash", tmp_path / "crash.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    meta = mod.calc.__calcbook_template__
+    meta = mod.calc.__probatrix_template__
     result = run_template(meta, {})
     assert result.ok is False
     assert result.error_title == "计算出错"
@@ -204,7 +204,7 @@ def test_run_template_duck_object_does_not_raise() -> None:
     """
     from pydantic import BaseModel
 
-    from calcbook.template import TemplateMeta
+    from probatrix.template import TemplateMeta
 
     class P(BaseModel):
         x: float = 1.0
@@ -224,7 +224,7 @@ def test_run_template_duck_object_does_not_raise() -> None:
 
 
 # ----------------------------------------------------------------------
-# project：.cbproj 读写
+# project：.pbproj 读写
 # ----------------------------------------------------------------------
 def test_project_roundtrip(tmp_path: Path) -> None:
     proj = new_project("测试工程")
@@ -239,7 +239,7 @@ def test_project_roundtrip(tmp_path: Path) -> None:
         params={"Mx": 150},
     ))
     proj.views["gl.calc"] = {"hidden_cols": ["fy"]}
-    path = save_project(proj, tmp_path / "t.cbproj")
+    path = save_project(proj, tmp_path / "t.pbproj")
 
     text = path.read_text(encoding="utf-8")
     assert '"format_version": 1' in text
@@ -255,7 +255,7 @@ def test_project_roundtrip(tmp_path: Path) -> None:
 
 
 def test_project_rejects_unknown_version(tmp_path: Path) -> None:
-    path = tmp_path / "bad.cbproj"
+    path = tmp_path / "bad.pbproj"
     path.write_text('{"format_version": 99}', encoding="utf-8")
     with pytest.raises(ValueError, match="版本不支持"):
         load_project(path)
@@ -266,15 +266,15 @@ def test_save_project_is_atomic_no_tmp_left(tmp_path: Path) -> None:
     proj = new_project("P")
     proj.items.append(CalcItem(
         name="GL-1", template_id="gl.calc", template_hash="", params={}))
-    path = save_project(proj, tmp_path / "x.cbproj")
+    path = save_project(proj, tmp_path / "x.pbproj")
     assert path.is_file()
-    assert not (tmp_path / "x.cbproj.tmp").exists()
+    assert not (tmp_path / "x.pbproj.tmp").exists()
     assert load_project(path).items[0].name == "GL-1"
 
 
 def test_load_project_bad_json_readable(tmp_path: Path) -> None:
     """坏 JSON：给可读的 ValueError（API 层转 400），而不是裸 JSONDecodeError。"""
-    path = tmp_path / "bad.cbproj"
+    path = tmp_path / "bad.pbproj"
     path.write_text("{not json", encoding="utf-8")
     with pytest.raises(ValueError, match="不是有效的 JSON"):
         load_project(path)
@@ -282,7 +282,7 @@ def test_load_project_bad_json_readable(tmp_path: Path) -> None:
 
 def test_load_project_missing_field_readable(tmp_path: Path) -> None:
     """计算项缺 template_id：给出第几项缺什么，而不是 KeyError。"""
-    path = tmp_path / "bad.cbproj"
+    path = tmp_path / "bad.pbproj"
     path.write_text('{"format_version": 1, "items": [{"name": "a"}]}',
                     encoding="utf-8")
     with pytest.raises(ValueError, match="缺少 template_id"):
@@ -299,6 +299,6 @@ def test_project_hash_matches_loader(tmp_path: Path, tpl_dir: Path) -> None:
         name="GL-1", template_id=entry.meta.template_id,
         template_hash=entry.hash, params={},
     ))
-    path = save_project(proj, tmp_path / "p.cbproj")
+    path = save_project(proj, tmp_path / "p.pbproj")
     back = load_project(path)
     assert back.items[0].template_hash == file_hash(tpl_dir / "gl.py")

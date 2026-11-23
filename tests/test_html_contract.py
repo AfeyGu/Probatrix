@@ -5,11 +5,11 @@
 """
 import pytest
 
-from calcbook import CalcBook
+from probatrix import Probatrix
 
 
-def book_all_kinds() -> CalcBook:
-    b = CalcBook(title="测试计算书")
+def book_all_kinds() -> Probatrix:
+    b = Probatrix(title="测试计算书")
     b.h1("1. 总信息")
     b.h2("1.1 参数")
     b.h3("局部说明")
@@ -39,7 +39,7 @@ def test_paragraph_bold_and_inline_math() -> None:
 
 def test_multiline_paragraph_is_lines() -> None:
     """多行文本 = 多个段落（每非空行一个 <p>），与历史行为一致。"""
-    h = CalcBook().p("第一行\n第二行").p("第三行").to_html(with_summary=False)
+    h = Probatrix().p("第一行\n第二行").p("第三行").to_html(with_summary=False)
     assert "<p>第一行</p>\n<p>第二行</p>\n<p>第三行</p>" in h
 
 
@@ -54,7 +54,7 @@ def test_formula_subs_standalone_blocks() -> None:
 
 def test_formula_without_subs_standalone() -> None:
     """无相邻 subs 的 formula 保持独立公式块。"""
-    h = CalcBook().formula(r"\sigma = \dfrac{M}{W}").to_html(with_summary=False)
+    h = Probatrix().formula(r"\sigma = \dfrac{M}{W}").to_html(with_summary=False)
     assert h == ("<p class='formula'>"
                  "$$\\sigma = \\dfrac{M}{W}$$</p>")
 
@@ -68,7 +68,7 @@ def test_check_verdict_line() -> None:
 # ---------------------------------------------------------------- 推导链（derive）
 def test_derive_multiline_segments() -> None:
     """推导链：一段一行，等号对齐（换行由分段决定）。"""
-    b = CalcBook()
+    b = Probatrix()
     b.derive(r"\sigma",
              r"\dfrac{M_x}{\gamma_x W_x} \le f",
              r"\dfrac{95.2\times10^6}{1.05 \times W_x}",
@@ -85,7 +85,7 @@ def test_derive_multiline_segments() -> None:
 
 def test_derive_one_segment_is_plain() -> None:
     """单段 = 单行公式（作者想一行连排就自己并成一段、段内用 = 连）。"""
-    h = CalcBook().derive(r"\sigma",
+    h = Probatrix().derive(r"\sigma",
                           r"\dfrac{M}{W} = 152.3\ \mathrm{N/mm^2}"
                           ).to_html(with_summary=False)
     assert h == ("<p class='formula'>"
@@ -95,12 +95,12 @@ def test_derive_one_segment_is_plain() -> None:
 
 def test_derive_requires_steps() -> None:
     with pytest.raises(ValueError):
-        CalcBook().derive(r"\sigma")
+        Probatrix().derive(r"\sigma")
 
 
 def test_derive_take_line() -> None:
     """取值行:行首带「取」字、等号与上行对齐。"""
-    b = CalcBook().derive(
+    b = Probatrix().derive(
         r"A_s",
         r"\dfrac{M}{f_y \gamma_s h_0}",
         r"\dfrac{1868847}{360 \times 0.9889 \times 77} = 68.2\ \mathrm{mm^2}",
@@ -121,7 +121,7 @@ def test_summary_table_appended() -> None:
     h = book_all_kinds().to_html()
     assert "<th>验算项</th><th>数值</th><th>比值</th><th>结论</th><th>依据</th>" in h
     assert h.rstrip().endswith("</table>")
-    assert "<table>" not in CalcBook(title="无验算").to_html(with_summary=False)
+    assert "<table>" not in Probatrix(title="无验算").to_html(with_summary=False)
 
 
 # ---------------------------------------------------------------- 插图
@@ -134,14 +134,14 @@ def test_image_centered_with_caption() -> None:
 
 # ---------------------------------------------------------------- 转义与内容边界
 def test_escapes_html() -> None:
-    h = CalcBook(title="T").p("<script>alert(1)</script> & \"引号\"").to_html(with_summary=False)
+    h = Probatrix(title="T").p("<script>alert(1)</script> & \"引号\"").to_html(with_summary=False)
     assert "<script>" not in h
     assert "&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;引号&quot;" in h
 
 
 def test_content_is_never_markup() -> None:
     """契约核心：结构只由 API 决定——文本长得像 md 也按字面显示。"""
-    h = CalcBook().p("## 附表").p("> 引用").p("- 列表").to_html(with_summary=False)
+    h = Probatrix().p("## 附表").p("> 引用").p("- 列表").to_html(with_summary=False)
     assert "<h2>" not in h and "<blockquote>" not in h and "class='item'" not in h
     assert "<p>## 附表</p>" in h
     assert "<p>&gt; 引用</p>" in h
@@ -149,7 +149,7 @@ def test_content_is_never_markup() -> None:
 
 
 def test_bold_in_table_cell_and_caption() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.table(["名", "值"], [["**梁**", "1"]])
     b.image_bytes(b"x", caption="**图**注")
     h = b.to_html(with_summary=False)
@@ -159,7 +159,7 @@ def test_bold_in_table_cell_and_caption() -> None:
 
 # ---------------------------------------------------------------- 图文环绕（side）
 def test_image_float_right_with_caption() -> None:
-    b = CalcBook()
+    b = Probatrix()
     b.p("截面说明。")
     b.image_bytes(b"\x89PNG-float", caption="截面简图", side="right")
     b.p("环绕段落。")
@@ -171,7 +171,7 @@ def test_image_float_right_with_caption() -> None:
 
 
 def test_image_float_left_no_caption() -> None:
-    h = CalcBook().image_bytes(b"x", side="left").to_html(with_summary=False)
+    h = Probatrix().image_bytes(b"x", side="left").to_html(with_summary=False)
     assert "<figure class='cb-float-left'><img src='data:image/png;base64,eA==' alt='图'></figure>" in h
     assert "<figcaption>" not in h     # 无图名则无 caption 元素
 
@@ -179,4 +179,4 @@ def test_image_float_left_no_caption() -> None:
 def test_side_unknown_rejected() -> None:
     import pydantic
     with pytest.raises(ValueError):
-        CalcBook().image_bytes(b"x", side="up")  # type: ignore[arg-type]
+        Probatrix().image_bytes(b"x", side="up")  # type: ignore[arg-type]

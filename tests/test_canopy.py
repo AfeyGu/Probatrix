@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from calcbook.engine import run_template
+from probatrix.engine import run_template
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -32,12 +32,12 @@ def _load_canopy():
 
 @pytest.fixture(scope="module")
 def meta():
-    return _load_canopy().calc.__calcbook_template__
+    return _load_canopy().calc.__probatrix_template__
 
 
 def test_canopy_declares_matplotlib():
     mod = _load_canopy()
-    assert mod.__calcbook_requires__ == ["matplotlib"]
+    assert mod.__probatrix_requires__ == ["matplotlib"]
 
 
 def _run(meta, name="", **params):

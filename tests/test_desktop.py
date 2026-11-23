@@ -1,7 +1,7 @@
-"""桌面宿主后台入口（``calcbook.desktop``）回归：就绪协议独占 stdout、Host/CORS 边界、
+"""桌面宿主后台入口（``probatrix.desktop``）回归：就绪协议独占 stdout、Host/CORS 边界、
 stdin EOF 生命周期。
 
-真启动子进程（宿主同款参数 ``-u -X utf8 -m calcbook.desktop --templates``，Windows 下带
+真启动子进程（宿主同款参数 ``-u -X utf8 -m probatrix.desktop --templates``，Windows 下带
 ``CREATE_NO_WINDOW`` 不闪终端）；进程卡住由测试侧兜底强杀并在 finally 回收。
 """
 
@@ -20,12 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from calcbook.desktop import READY_PREFIX
+from probatrix.desktop import READY_PREFIX
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
 SRC = ROOT / "src"
-VUE_INDEX = SRC / "calcbook" / "web" / "index.html"
+VUE_INDEX = SRC / "probatrix" / "web" / "index.html"
 VITE_ORIGIN = "http://127.0.0.1:5173"
 
 #: 测试侧兜底（防止子进程异常卡住 pytest）；产品侧不设启动超时，截止时间归宿主
@@ -38,7 +38,7 @@ import sys
 
 from pydantic import BaseModel
 
-from calcbook import CalcBook, Field, template
+from probatrix import Probatrix, Field, template
 
 print("模板导入期 print：应进 stderr")
 if sys.platform == "win32":
@@ -51,9 +51,9 @@ class NoisyParams(BaseModel):
 
 
 @template("带打印的验算", description="回归：顶层 print 不污染 stdout")
-def calc(p: NoisyParams) -> CalcBook:
+def calc(p: NoisyParams) -> Probatrix:
     print("计算期 print：应进 stderr")
-    b = CalcBook(title="带打印的验算")
+    b = Probatrix(title="带打印的验算")
     b.check("a > 0", value=p.a, limit=0, op="ge")
     return b
 '''
@@ -75,7 +75,7 @@ class _Desktop:
         env["PYTHONPATH"] = str(SRC) + (
             os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
         self.proc = subprocess.Popen(
-            [sys.executable, "-u", "-X", "utf8", "-m", "calcbook.desktop",
+            [sys.executable, "-u", "-X", "utf8", "-m", "probatrix.desktop",
              "--templates", str(template_dir)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env=env, text=True, encoding="utf-8", errors="replace",
@@ -170,7 +170,7 @@ def _request(port: int, method: str, path: str, body: dict | None = None,
 def test_desktop_ready_line_owns_stdout(tmp_path: Path) -> None:
     with _running(_templates(tmp_path)) as desk:
         line = desk.wait_ready()
-        assert re.fullmatch(r'CALCBOOK_READY \{"port":[1-9]\d*\}\n', line), line
+        assert re.fullmatch(r'PROBATRIX_READY \{"port":[1-9]\d*\}\n', line), line
 
         status, _, body = _request(desk.port, "GET", "/api/templates")
         assert status == 200

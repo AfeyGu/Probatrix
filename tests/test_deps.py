@@ -1,4 +1,4 @@
-"""模板第三方依赖机制：__calcbook_requires__ 声明收集、环境检查、
+"""模板第三方依赖机制：__probatrix_requires__ 声明收集、环境检查、
 运行前拦截与 ModuleNotFoundError 兜底。"""
 
 from __future__ import annotations
@@ -8,28 +8,28 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from calcbook import Field              # 契约 Field（吸收 label 等扩展键）
-from calcbook.engine import run_template
-from calcbook.loader import TemplateLoader, check_deps
-from calcbook.server import create_app
-from calcbook.template import TemplateMeta
+from probatrix import Field              # 契约 Field（吸收 label 等扩展键）
+from probatrix.engine import run_template
+from probatrix.loader import TemplateLoader, check_deps
+from probatrix.server import create_app
+from probatrix.template import TemplateMeta
 
 #: 保证环境中不存在的模块名
-MISSING = "calcbook_definitely_missing_xyz_12345"
+MISSING = "probatrix_definitely_missing_xyz_12345"
 
 TPL = """\
 from __future__ import annotations
 from pydantic import BaseModel
-from calcbook import CalcBook, Field, template
+from probatrix import Probatrix, Field, template
 
-__calcbook_requires__ = {requires}
+__probatrix_requires__ = {requires}
 
 class P(BaseModel):
     a: float = Field(1.0, label="a")
 
 @template("依赖测试", description="")
-def calc(p: P) -> CalcBook:
-    b = CalcBook()
+def calc(p: P) -> Probatrix:
+    b = Probatrix()
     b.p("ok")
     return b
 """

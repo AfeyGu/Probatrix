@@ -1,8 +1,8 @@
 //! Python 后台进程的定位、启动、协议握手与回收。
 //!
 //! 协议（第一里程碑固定）：宿主以无窗口方式启动
-//! `python.exe -u -X utf8 -m calcbook.desktop --templates <目录>`，
-//! 后台在真正监听成功后向 stdout 刷新一行 `CALCBOOK_READY {"port":12345}`。
+//! `python.exe -u -X utf8 -m probatrix.desktop --templates <目录>`，
+//! 后台在真正监听成功后向 stdout 刷新一行 `PROBATRIX_READY {"port":12345}`。
 //! 宿主关闭子进程 stdin（EOF）通知后台优雅停机，超过期限才强制终止自己启动的进程。
 //! stdout、stderr 全程排空进应用日志，失败提示只给结论与日志位置。
 
@@ -23,7 +23,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-const READY_PREFIX: &str = "CALCBOOK_READY";
+const READY_PREFIX: &str = "PROBATRIX_READY";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(6);
 /// 轮询切片：让「应用退出」能在等待就绪的途中及时中断。
@@ -73,7 +73,7 @@ impl Host {
         let worker = Arc::clone(host);
         let log = Arc::clone(&host.log);
         let spawned = std::thread::Builder::new()
-            .name("calcbook-startup".into())
+            .name("probatrix-startup".into())
             .spawn(move || match worker.run_startup(&exe_dir) {
                 Ok(port) => {
                     if worker.stopping.load(Ordering::SeqCst) {
@@ -152,7 +152,7 @@ impl Host {
         let (tx, rx) = mpsc::channel();
         let log = Arc::clone(&self.log);
         let spawned = std::thread::Builder::new()
-            .name("calcbook-stdout".into())
+            .name("probatrix-stdout".into())
             .spawn(move || {
                 drain_lines(stdout, |line| {
                     log.write("python:out", &line);
@@ -168,7 +168,7 @@ impl Host {
     fn drain_stderr(&self, stderr: impl Read + Send + 'static, pid: u32) {
         let log = Arc::clone(&self.log);
         let spawned = std::thread::Builder::new()
-            .name("calcbook-stderr".into())
+            .name("probatrix-stderr".into())
             .spawn(move || {
                 drain_lines(stderr, |line| log.write("python:err", &line));
                 log.write("host", &format!("后台 stderr 已关闭，pid={pid}"));
@@ -301,7 +301,7 @@ fn spawn(config: &Config) -> Result<Child, String> {
         .arg("-X")
         .arg("utf8")
         .arg("-m")
-        .arg("calcbook.desktop")
+        .arg("probatrix.desktop")
         .arg("--templates")
         .arg(&config.templates)
         .current_dir(&config.work_dir)
@@ -346,7 +346,7 @@ fn describe(status: ExitStatus) -> String {
     }
 }
 
-/// 解析 `CALCBOOK_READY {"port":12345}`；不是就绪行返回 None。
+/// 解析 `PROBATRIX_READY {"port":12345}`；不是就绪行返回 None。
 /// 端口按非零 u16 校验，异常一律给出中文原因。
 fn parse_ready(line: &str) -> Option<Result<u16, String>> {
     let rest = line.trim().strip_prefix(READY_PREFIX)?;
@@ -369,25 +369,25 @@ fn env_value(name: &str) -> Option<String> {
 /// 运行时布局：环境变量覆盖 > exe 同级默认（`python/python.exe`、`examples/`）。
 /// `lookup` 可注入，测试因此不必改全局环境变量。
 fn locate(exe_dir: &Path, lookup: impl Fn(&str) -> Option<String>) -> Result<Config, String> {
-    let python = match override_path(lookup("CALCBOOK_PYTHON"), "CALCBOOK_PYTHON")? {
+    let python = match override_path(lookup("PROBATRIX_PYTHON"), "PROBATRIX_PYTHON")? {
         Some(path) => path,
         None => exe_dir.join("python").join("python.exe"),
     };
     if !python.is_file() {
         return Err(format!(
-            "找不到 Python 运行环境：{}\nCalcBook.exe 同级目录应包含 python\\python.exe；\
-             开发时用环境变量 CALCBOOK_PYTHON 指定 python.exe 的绝对路径。",
+            "找不到 Python 运行环境：{}\nProbatrix.exe 同级目录应包含 python\\python.exe；\
+             开发时用环境变量 PROBATRIX_PYTHON 指定 python.exe 的绝对路径。",
             python.display()
         ));
     }
-    let templates = match override_path(lookup("CALCBOOK_TEMPLATES"), "CALCBOOK_TEMPLATES")? {
+    let templates = match override_path(lookup("PROBATRIX_TEMPLATES"), "PROBATRIX_TEMPLATES")? {
         Some(path) => path,
         None => exe_dir.join("examples"),
     };
     if !templates.is_dir() {
         return Err(format!(
-            "找不到计算模板目录：{}\nCalcBook.exe 同级目录应包含 examples\\；\
-             开发时用环境变量 CALCBOOK_TEMPLATES 指定模板目录。",
+            "找不到计算模板目录：{}\nProbatrix.exe 同级目录应包含 examples\\；\
+             开发时用环境变量 PROBATRIX_TEMPLATES 指定模板目录。",
             templates.display()
         ));
     }

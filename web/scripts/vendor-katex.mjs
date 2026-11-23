@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '../..')                      // 仓库根
-const src = resolve(here, '../node_modules/katex/dist')
-const dst = resolve(root, 'src/calcbook/vendor/katex')
+const katex = resolve(here, '../node_modules/katex')
+const src = resolve(katex, 'dist')
+const dst = resolve(root, 'src/probatrix/vendor/katex')
 
 if (!existsSync(src)) {
   console.error(`[vendor-katex] 找不到 ${src}，请先 npm install`)
@@ -23,6 +24,7 @@ for (const item of ['katex.min.css', 'katex.min.js', 'contrib/auto-render.min.js
   mkdirSync(dirname(to), { recursive: true })
   cpSync(from, to)
 }
+cpSync(resolve(katex, 'LICENSE'), resolve(dst, 'LICENSE'))
 
 // 字体只备 woff2：服务端内联离线导出时只用它，不重复背 woff/ttf 两份
 const fontFiles = readdirSync(resolve(src, 'fonts')).filter(f => f.endsWith('.woff2'))

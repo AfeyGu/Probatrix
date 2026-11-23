@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from calcbook.engine import run_template
+from probatrix.engine import run_template
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -31,7 +31,7 @@ def _load_stair():
 
 @pytest.fixture(scope="module")
 def meta():
-    return _load_stair().calc.__calcbook_template__
+    return _load_stair().calc.__probatrix_template__
 
 
 def _run(meta, name="", **params):
@@ -107,7 +107,7 @@ def test_1ata1_row_hinged(meta):
 # 参数契约与异常路径
 # ----------------------------------------------------------------------
 def test_param_meta(meta):
-    from calcbook import param_meta
+    from probatrix import param_meta
     metas = {m["name"]: m for m in param_meta(meta.params_model)}
     assert metas["support"]["choices"] == ["两端弹性", "下铰上弹"]
     assert metas["support"]["group"] == "几何"

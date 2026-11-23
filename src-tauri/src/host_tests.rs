@@ -1,4 +1,4 @@
-//! Python 后台协议的离线验证：桩模块冒充 `calcbook.desktop`，覆盖就绪、非法端口、
+//! Python 后台协议的离线验证：桩模块冒充 `probatrix.desktop`，覆盖就绪、非法端口、
 //! 提前退出、超时与 stdin 关闭后的优雅停机和超期强杀。全部走真实子进程管线，
 //! 因此顺带实测了「子进程没有控制台」这一条验收点（桩里读 GetConsoleWindow）。
 
@@ -9,12 +9,12 @@ use std::time::{Duration, Instant};
 
 use super::*;
 
-/// 桩模块：按环境变量选择行为；把自身 `GetConsoleWindow()` 结果写进 `CALCBOOK_STUB_OUT`。
+/// 桩模块：按环境变量选择行为；把自身 `GetConsoleWindow()` 结果写进 `PROBATRIX_STUB_OUT`。
 const STUB_SOURCE: &str = r#"
 import os, sys, time
 
 def probe():
-    out = os.environ.get("CALCBOOK_STUB_OUT")
+    out = os.environ.get("PROBATRIX_STUB_OUT")
     if not out:
         return
     try:
@@ -26,16 +26,16 @@ def probe():
         handle.write(str(hwnd))
 
 probe()
-mode = os.environ.get("CALCBOOK_STUB_MODE", "ready")
+mode = os.environ.get("PROBATRIX_STUB_MODE", "ready")
 if mode == "ready":
     print("stub: 解释器=%s" % sys.executable)
     print("stub: 普通日志行，宿主应忽略")
-    sys.stdout.write('CALCBOOK_READY {"port": 43210}\n')
+    sys.stdout.write('PROBATRIX_READY {"port": 43210}\n')
     sys.stdout.flush()
     sys.stdin.read()
     sys.exit(0)
 elif mode == "bad_port":
-    sys.stdout.write('CALCBOOK_READY {"port": 0}\n')
+    sys.stdout.write('PROBATRIX_READY {"port": 0}\n')
     sys.stdout.flush()
     time.sleep(60)
 elif mode == "die":
@@ -57,8 +57,8 @@ fn env_lock() -> std::sync::MutexGuard<'static, ()> {
 }
 
 fn stub_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("calcbook-stub-{}-{tag}", std::process::id()));
-    let package = dir.join("calcbook");
+    let dir = std::env::temp_dir().join(format!("probatrix-stub-{}-{tag}", std::process::id()));
+    let package = dir.join("probatrix");
     fs::create_dir_all(&package).expect("创建桩目录失败");
     fs::write(package.join("__init__.py"), "").expect("写桩包失败");
     fs::write(package.join("desktop.py"), STUB_SOURCE).expect("写桩模块失败");
@@ -66,7 +66,7 @@ fn stub_dir(tag: &str) -> PathBuf {
 }
 
 fn python_exe() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("CALCBOOK_TEST_PYTHON") {
+    if let Some(path) = std::env::var_os("PROBATRIX_TEST_PYTHON") {
         return Some(PathBuf::from(path));
     }
     let search = std::env::var_os("PATH")?;
@@ -97,24 +97,24 @@ fn log_text(host: &Host) -> String {
 
 #[test]
 fn parse_ready_accepts_protocol_line() {
-    let line = parse_ready("CALCBOOK_READY {\"port\":12345}");
+    let line = parse_ready("PROBATRIX_READY {\"port\":12345}");
     assert_eq!(line.and_then(|parsed| parsed.ok()), Some(12345));
-    let padded = parse_ready("  CALCBOOK_READY   {\"port\": 65535}  \r");
+    let padded = parse_ready("  PROBATRIX_READY   {\"port\": 65535}  \r");
     assert_eq!(padded.and_then(|parsed| parsed.ok()), Some(65535));
 }
 
 #[test]
 fn parse_ready_rejects_bad_payloads() {
-    let zero = parse_ready("CALCBOOK_READY {\"port\":0}").unwrap();
+    let zero = parse_ready("PROBATRIX_READY {\"port\":0}").unwrap();
     assert!(zero.unwrap_err().contains("端口无效：0"));
 
-    let too_big = parse_ready("CALCBOOK_READY {\"port\":70000}").unwrap();
+    let too_big = parse_ready("PROBATRIX_READY {\"port\":70000}").unwrap();
     assert!(too_big.unwrap_err().contains("端口无效：70000"));
 
-    let missing = parse_ready("CALCBOOK_READY {\"where\":1}").unwrap();
+    let missing = parse_ready("PROBATRIX_READY {\"where\":1}").unwrap();
     assert!(missing.unwrap_err().contains("缺少 port 字段"));
 
-    let broken = parse_ready("CALCBOOK_READY 不是 JSON").unwrap();
+    let broken = parse_ready("PROBATRIX_READY 不是 JSON").unwrap();
     assert!(broken.unwrap_err().contains("不是有效 JSON"));
 
     assert!(parse_ready("普通日志行").is_none());
@@ -130,8 +130,8 @@ fn locate_prefers_env_overrides() {
     fs::create_dir_all(&templates).unwrap();
 
     let config = locate(&base.join("程序 目录"), |name| match name {
-        "CALCBOOK_PYTHON" => Some(python.display().to_string()),
-        "CALCBOOK_TEMPLATES" => Some(format!("  {}  ", templates.display())),
+        "PROBATRIX_PYTHON" => Some(python.display().to_string()),
+        "PROBATRIX_TEMPLATES" => Some(format!("  {}  ", templates.display())),
         _ => None,
     })
     .expect("环境变量覆盖应生效");
@@ -155,12 +155,12 @@ fn locate_reports_missing_pieces_and_relative_override() {
     assert!(no_templates.contains("examples"));
 
     let relative = locate(&base, |name| match name {
-        "CALCBOOK_TEMPLATES" => Some("相对/模板".to_string()),
+        "PROBATRIX_TEMPLATES" => Some("相对/模板".to_string()),
         _ => None,
     })
     .unwrap_err();
     assert!(
-        relative.contains("CALCBOOK_TEMPLATES 必须是绝对路径"),
+        relative.contains("PROBATRIX_TEMPLATES 必须是绝对路径"),
         "{relative}"
     );
 }
@@ -175,8 +175,8 @@ fn ready_then_graceful_shutdown_on_stdin_close() {
     };
     let probe = stub.join("console.txt");
     std::env::set_var("PYTHONPATH", &stub);
-    std::env::set_var("CALCBOOK_STUB_MODE", "ready");
-    std::env::set_var("CALCBOOK_STUB_OUT", &probe);
+    std::env::set_var("PROBATRIX_STUB_MODE", "ready");
+    std::env::set_var("PROBATRIX_STUB_OUT", &probe);
 
     let host = ready_host(&stub);
     let (ready, pid) = host.launch(&config).expect("桩后台应能启动");
@@ -197,7 +197,7 @@ fn ready_then_graceful_shutdown_on_stdin_close() {
         started.elapsed()
     );
     let log = log_text(&host);
-    // 真正跑起来的就是配置里那个解释器（本机验收用 CALCBOOK_TEST_PYTHON 指定的 3.12）。
+    // 真正跑起来的就是配置里那个解释器（本机验收用 PROBATRIX_TEST_PYTHON 指定的 3.12）。
     let interpreter = format!("解释器={}", config.python.display()).to_lowercase();
     assert!(log.to_lowercase().contains(&interpreter), "日志：{log}");
     assert!(log.contains("已关闭后台 stdin"), "日志：{log}");
@@ -218,8 +218,8 @@ fn early_exit_reports_exit_code() {
         return;
     };
     std::env::set_var("PYTHONPATH", &stub);
-    std::env::set_var("CALCBOOK_STUB_MODE", "die");
-    std::env::remove_var("CALCBOOK_STUB_OUT");
+    std::env::set_var("PROBATRIX_STUB_MODE", "die");
+    std::env::remove_var("PROBATRIX_STUB_OUT");
 
     let host = ready_host(&stub);
     let (ready, pid) = host.launch(&config).expect("桩后台应能启动");
@@ -240,8 +240,8 @@ fn startup_failure_recycles_without_blocking_error_page() {
         return;
     };
     std::env::set_var("PYTHONPATH", &stub);
-    std::env::set_var("CALCBOOK_STUB_MODE", "silent");
-    std::env::remove_var("CALCBOOK_STUB_OUT");
+    std::env::set_var("PROBATRIX_STUB_MODE", "silent");
+    std::env::remove_var("PROBATRIX_STUB_OUT");
 
     let host = ready_host(&stub);
     let (ready, pid) = host.launch(&config).expect("桩后台应能启动");
@@ -269,8 +269,8 @@ fn invalid_port_is_reported() {
         return;
     };
     std::env::set_var("PYTHONPATH", &stub);
-    std::env::set_var("CALCBOOK_STUB_MODE", "bad_port");
-    std::env::remove_var("CALCBOOK_STUB_OUT");
+    std::env::set_var("PROBATRIX_STUB_MODE", "bad_port");
+    std::env::remove_var("PROBATRIX_STUB_OUT");
 
     let host = ready_host(&stub);
     let (ready, pid) = host.launch(&config).expect("桩后台应能启动");

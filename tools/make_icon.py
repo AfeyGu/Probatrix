@@ -1,4 +1,4 @@
-"""生成 CalcBook 图标 assets/icon.ico（多尺寸：256/48/32/16）。
+"""生成 Probatrix 图标 assets/icon.ico（多尺寸：256/48/32/16）。
 
 图形与 web/public/icon.svg 同款：深色细圆角方 + ∑ 求和符号线稿。
 绘制方式：4x 超采样（抗锯齿）→ LANCZOS 降采样，无需 cairo 等原生库。

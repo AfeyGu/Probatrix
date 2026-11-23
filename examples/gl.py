@@ -3,12 +3,12 @@
 展示三件事：
 1. Pydantic 模型 + Field 声明参数（label/unit/choices/group 驱动界面）；
 2. @template 注册计算入口；
-3. CalcBook 写计算书：符号公式 → 代入数值 → check 验算（自动结论表）。
+3. Probatrix 写计算书：符号公式 → 代入数值 → check 验算（自动结论表）。
 """
 
 from pydantic import BaseModel
 
-from calcbook import CalcBook, Field, template
+from probatrix import Probatrix, Field, template
 
 
 class GLParams(BaseModel):
@@ -34,8 +34,8 @@ class GLParams(BaseModel):
 
 
 @template("钢梁强度验算", description="GB 50017-2017 弯曲正应力验算（最小示例）")
-def calc(p: GLParams) -> CalcBook:
-    b = CalcBook(title="钢梁强度验算")
+def calc(p: GLParams) -> Probatrix:
+    b = Probatrix(title="钢梁强度验算")
     sigma = p.Mx * 1e6 / (p.gamma_x * p.Wx)   # kN·m→N·mm：×1e6
 
     b.h2("1. 计算条件")

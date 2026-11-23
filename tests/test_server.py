@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from calcbook.server import create_app
+from probatrix.server import create_app
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
@@ -111,7 +111,7 @@ def test_project_put_get_save_load(client: TestClient, tmp_path: Path) -> None:
     assert r.json()["items"][0]["name"] == "GL-1"
     assert r.json()["items"][0]["id"]                      # 服务端补 id
 
-    path = str(tmp_path / "p.cbproj")
+    path = str(tmp_path / "p.pbproj")
     assert client.post("/api/project/save", json={"path": path}).status_code == 200
 
     client.post("/api/project/new", json={"name": "空工程"})
@@ -154,7 +154,7 @@ def test_hash_check_detects_file_edit_without_refresh(
 
 def test_load_project_bad_file_400(client: TestClient, tmp_path: Path) -> None:
     """坏工程文件：400 + 可读原因（而非 500）。"""
-    bad = tmp_path / "bad.cbproj"
+    bad = tmp_path / "bad.pbproj"
     bad.write_text("{oops", encoding="utf-8")
     r = client.post("/api/project/load", json={"path": str(bad)})
     assert r.status_code == 400
@@ -163,7 +163,7 @@ def test_load_project_bad_file_400(client: TestClient, tmp_path: Path) -> None:
 
 def test_save_project_bad_dir_400(client: TestClient, tmp_path: Path) -> None:
     r = client.post("/api/project/save",
-                    json={"path": str(tmp_path / "no_such_dir" / "p.cbproj")})
+                    json={"path": str(tmp_path / "no_such_dir" / "p.pbproj")})
     assert r.status_code == 400
     assert "保存工程失败" in r.json()["detail"]
 
