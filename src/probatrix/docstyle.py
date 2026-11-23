@@ -14,7 +14,17 @@ DOC_CSS = """\
 .cb-doc h1 { font-size: 22px; }
 .cb-doc h2 { font-size: 18px; }
 .cb-doc h3 { font-size: 16px; }
+.cb-doc h4, .cb-doc h5, .cb-doc h6 { font-weight: 600; font-size: 15px; margin: 14px 0 6px; }
 .cb-doc p { margin: 8px 0; }
+.cb-doc ul, .cb-doc ol { margin: 8px 0; padding-left: 26px; }
+.cb-doc li { margin: 3px 0; }
+.cb-doc pre { margin: 10px 0; padding: 10px 14px; background: #f7f6f3;
+              border: 1px solid #e6e3dd; border-radius: 4px; overflow-x: auto;
+              white-space: pre-wrap; word-break: break-word;
+              font: 13px/1.65 "Cascadia Mono", Consolas, "Courier New", monospace; }
+.cb-doc pre code { background: none; padding: 0; font: inherit; }
+.cb-doc hr { border: 0; border-top: 1px solid #d5d3cf; margin: 18px 0; }
+.cb-doc a { color: #1f5aa6; text-decoration: none; border-bottom: 1px solid #c3d3e8; }
 .cb-doc table { border-collapse: collapse; margin: 12px 0; width: 100%; }
 .cb-doc th, .cb-doc td { border: 1px solid #d5d3cf; padding: 4px 10px; text-align: left; }
 .cb-doc th { background: #f5f4f1; font-weight: 600; }
@@ -32,12 +42,13 @@ DOC_CSS = """\
 .cb-doc figure img { width: 100%; }
 .cb-doc figcaption { text-align: center; font-size: 12.5px; color: #555; margin-top: 6px; }
 .cb-doc h1, .cb-doc h2, .cb-doc h3, .cb-doc p.formula, .cb-doc p.item,
-.cb-doc blockquote, .cb-doc table { clear: both; }
+.cb-doc blockquote, .cb-doc table, .cb-doc pre, .cb-doc ul, .cb-doc ol,
+.cb-doc hr { clear: both; }
 
 /* ---- 打印（PDF 送审）：分页保护 ---- */
 @media print {
-  .cb-doc table, .cb-doc p.formula,
+  .cb-doc table, .cb-doc p.formula, .cb-doc pre,
   .cb-doc figure.cb-float-right, .cb-doc figure.cb-float-left { page-break-inside: avoid; }
-  .cb-doc h1, .cb-doc h2, .cb-doc h3 { page-break-after: avoid; }
+  .cb-doc h1, .cb-doc h2, .cb-doc h3, .cb-doc h4 { page-break-after: avoid; }
 }
 """

@@ -1,9 +1,7 @@
 """计算执行：参数校验 → 运行模板 → 收集结果/报错。
 
-报错不打断界面（契约第 9 节）：任何异常都变成 RunResult.error 里的
-原样 traceback，前端预览区直接展示——这也是模板作者的调试界面；
-唯例外是缺第三方库（ModuleNotFoundError / 声明缺失）：给「缺少依赖 +
-安装指引」的可读信息，不甩原始 traceback。
+报错排查见 docs/manual/模板快速开始.md。计算异常的 traceback 原样写入
+RunResult.error 并显示在预览区。缺少第三方库时，预览区显示库名和安装指引。
 """
 
 from __future__ import annotations

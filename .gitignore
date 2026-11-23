@@ -52,7 +52,8 @@ _srv.log
 _srv.err
 release/
 
-# README 截图与图标（例外入库）
+# README 和用户手册的图片（例外入库）
 !assets/*.png
 !assets/*.ico
+!/docs/manual/images/*.png
 _tmp/

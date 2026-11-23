@@ -1,4 +1,4 @@
-"""to_html 内容语法契约：实现 = docs/manual/模板开发指南.md「内容语法契约」。
+"""to_html 内容语法契约见 docs/manual/计算书排版.md 的「内容语法契约」。
 
 结构只由 API 决定；文本一律 HTML 转义；行内格式仅 `**粗体**` 与 `$…$`。
 本文件与契约文档同步维护——改这里必须同步文档，反之亦然。
@@ -180,3 +180,98 @@ def test_side_unknown_rejected() -> None:
     import pydantic
     with pytest.raises(ValueError):
         Probatrix().image_bytes(b"x", side="up")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------- Markdown 块（markdown）
+def test_markdown_headings_paragraph_bold_code_math() -> None:
+    """markdown() 认块级结构，行内认 code/**粗体**/$…$——与 p() 的分工见文档。"""
+    md = "# 标题\n\n## 小节\n\n第一段**粗体**，行内 `code` 与公式 $f=305$。"
+    h = Probatrix().markdown(md).to_html(with_summary=False)
+    assert h.split("\n") == [
+        "<h1>标题</h1>",
+        "<h2>小节</h2>",
+        "<p>第一段<b>粗体</b>，行内 <code>code</code> 与公式 $f=305$。</p>",
+    ]
+    assert Probatrix().markdown("#### 四级标题").to_html() == "<h4>四级标题</h4>"
+
+
+def test_markdown_code_fence_verbatim() -> None:
+    """围栏代码块：内容整体转义，内部的 ** 与 <tag> 一律不解析。"""
+    md = "```python\nb.p('<b>**x**</b>')\n```"
+    h = Probatrix().markdown(md).to_html(with_summary=False)
+    assert h == ("<pre><code class='language-python'>"
+                 "b.p('&lt;b&gt;**x**&lt;/b&gt;')</code></pre>")
+
+
+def test_markdown_code_fence_unclosed_keeps_body() -> None:
+    h = Probatrix().markdown("```\n行1\n行2").to_html(with_summary=False)
+    assert h == "<pre><code>行1\n行2</code></pre>"
+
+
+def test_markdown_lists() -> None:
+    h = Probatrix().markdown("- 甲\n- 乙\n\n1. 一\n2. 二").to_html(with_summary=False)
+    assert "<ul><li>甲</li><li>乙</li></ul>" in h
+    assert "<ol><li>一</li><li>二</li></ol>" in h
+
+
+def test_markdown_list_continuation_merges() -> None:
+    """缩进续行并入上一项（不做深层嵌套）。"""
+    h = Probatrix().markdown("- 第一项\n  续行说明").to_html(with_summary=False)
+    assert h == "<ul><li>第一项\n续行说明</li></ul>"
+
+
+def test_markdown_table() -> None:
+    md = "| 名 | `值` |\n| --- | --- |\n| **梁** | 1 |"
+    h = Probatrix().markdown(md).to_html(with_summary=False)
+    assert h == ("<table><tr><th>名</th><th><code>值</code></th></tr>"
+                 "<tr><td><b>梁</b></td><td>1</td></tr></table>")
+
+
+def test_markdown_quote_and_rule() -> None:
+    h = Probatrix().markdown("> 注意：**别忘**\n\n---").to_html(with_summary=False)
+    assert h == "<blockquote><p>注意：<b>别忘</b></p></blockquote>\n<hr>"
+
+
+def test_markdown_links_site_links_are_not_anchors() -> None:
+    """站内链接（.md）渲染成行内代码——预览区里真链接会把整个界面跳走。"""
+    md = ("见 [模板开发指南.md](模板开发指南.md) 与 "
+          "[规范](https://example.com/a?b=1&c=2)。")
+    h = Probatrix().markdown(md).to_html(with_summary=False)
+    assert "<code>模板开发指南.md</code>" in h
+    assert "<a href=" not in h.split("与 ")[0]
+    assert ("<a href='https://example.com/a?b=1&amp;c=2' target='_blank' "
+            "rel='noopener noreferrer'>规范</a>") in h
+
+
+def test_markdown_escapes_html() -> None:
+    h = Probatrix().markdown("<script>alert(1)</script>").to_html(with_summary=False)
+    assert "<script>" not in h
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in h
+
+
+def test_markdown_soft_break_join() -> None:
+    """段内折行：中文直接相连；ASCII 结尾与汉字之间补空格（全角标点前不补）。"""
+    md = "中文折行\n继续写。\n见 examples/gl.py\n的写法，以及 `x`\n（括号）"
+    h = Probatrix().markdown(md).to_html(with_summary=False)
+    assert h == ("<p>中文折行继续写。见 examples/gl.py 的写法，以及 "
+                 "<code>x</code>（括号）</p>")
+
+
+def test_markdown_block_mixes_with_other_items() -> None:
+    b = Probatrix(title="T")
+    b.h2("1. 说明")
+    b.markdown("| a |\n| --- |\n| 1 |")
+    h = b.to_html(with_summary=False)
+    assert h == ("<h1>T</h1>\n<h2>1. 说明</h2>\n"
+                 "<table><tr><th>a</th></tr><tr><td>1</td></tr></table>")
+
+
+def test_markdown_block_to_markdown_is_verbatim() -> None:
+    """Markdown 导出物原样回放（不二次加工）。"""
+    assert Probatrix().markdown("## 标题\n\n正文").to_markdown() == "## 标题\n\n正文\n"
+
+
+def test_p_still_never_parses_markdown() -> None:
+    """markdown() 不改变 p() 的契约：段落里的结构标记仍是字面文字。"""
+    h = Probatrix().p("## 标题").markdown("## 标题").to_html(with_summary=False)
+    assert h == "<p>## 标题</p>\n<h2>标题</h2>"

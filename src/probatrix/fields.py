@@ -1,6 +1,6 @@
 """参数声明：扩展元信息的 Field 与提取工具。
 
-模板作者用法（契约见 docs/manual/模板开发指南.md 第 2 节）：
+模板作者用法见 docs/manual/参数输入界面.md。
 
     from probatrix import Field
     from pydantic import BaseModel
@@ -43,7 +43,7 @@ def Field(  # noqa: N802  # 对齐 pydantic.Field 命名
     """pydantic.Field 的薄包装，把界面元信息收进 json_schema_extra。
 
     声明即界面：label（中文名）、unit（单位，展示用）、choices（下拉选项）、
-    group（参数分组；批量模式下同组参数可整组「统一设置」）、
+    group（单项表单中的参数分组）、
     batch_hidden（True 时批量表格默认不显示该列，可在「列显隐」里勾回）、
     row（布局：声明相邻且同标记的参数在单件表单并排一行）、
     show_if（条件显隐：小表达式，不满足时单件表单隐藏该参数，值保留；

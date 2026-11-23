@@ -1,6 +1,6 @@
 """模板加载：目录扫描 + importlib 导入 + 模板收集。
 
-设计要点（契约见 docs/架构全景.md 与 docs/manual/模板开发指南.md 第 9 节）：
+设计要点见 docs/架构全景.md，模板共享说明见 docs/manual/模板开发指南.md。
 - 扫描模板目录下所有 .py，收集带 __probatrix_template__ 标记的函数；
 - 模板 id = 「文件名.函数名」（如 gl.calc），工程文件按 id 引用；
 - 同目录数据模块（如 Hsteel.py）用普通 import 即可——加载时把模板目录

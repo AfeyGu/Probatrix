@@ -42,7 +42,7 @@ Windows 桌面入口（src-tauri/）
   → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
                  失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
                  模板函数声明可选 name 形参时，计算项「名称」作项目编号传入
-  → probatrix.py Probatrix Builder：formula/subs/check/cite/image/table → items；
+  → probatrix.py Probatrix Builder：formula/subs/check/cite/image/table/markdown → items；
                  to_html() 直出 HTML（预览/导出用）、to_markdown() 纯导出物（下载阅读）；
                  check() 一等公民：正文判定行 + 末尾自动「验算结论汇总」表 + max_ratio；
                  metric(name, 值)：批量表格附加指标列（不进正文，随 RunResult.metrics 到前端动态成列）
@@ -62,7 +62,7 @@ Windows 桌面入口（src-tauri/）
 ## 关键设计决定（改代码前先读 `docs/架构全景.md`）
 
 - **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
-  同轮同步相关 md（`AGENTS.md` 架构图、`docs/架构全景.md`、`docs/manual/模板开发指南.md`、
+  同轮同步相关 md（`AGENTS.md` 架构图、`docs/架构全景.md`、`docs/manual/` 中的相应手册、
   `README.md`），不能只改代码。
 - **模板第三方依赖用 `__probatrix_requires__` 声明**（模块级 import 名列表，可选）：
   loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
@@ -78,7 +78,7 @@ Windows 桌面入口（src-tauri/）
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。
 - **离线导出只内联 woff2**：woff/ttf 加上会到 1.73 MB，不划算；vendor 目录只备 css+2js+20 个 woff2。
 - **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。
-- **管线是 items → HTML 直通**（无 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定——改渲染必须同步契约文档（模板开发指南 §3.1）。
+- **管线是 items → HTML 直通**（无隐式 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定。改渲染须同步《计算书排版》的「内容语法契约」。`markdown(text)` 是显式例外：整篇 Markdown 经 `md.py` 排成块级结构（标题/代码块/列表/表格/引用），`p()` 仍永不解析。 [计算书排版](docs/manual/计算书排版.md#内容语法契约)
 
 ## 界面设计系统（v2-pro 通透风，改样式前先看这段）
 
