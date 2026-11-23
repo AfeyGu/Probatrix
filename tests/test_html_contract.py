@@ -1,8 +1,17 @@
-"""to_html 内容语法契约见 docs/manual/计算书排版.md 的「内容语法契约」。
+"""to_html 内容语法契约见 docs/manual/06-计算书排版.md 的「内容语法契约」。
 
 结构只由 API 决定；文本一律 HTML 转义；行内格式仅 `**粗体**` 与 `$…$`。
 本文件与契约文档同步维护——改这里必须同步文档，反之亦然。
+
+Markdown 图片（本文件最后一节）：`markdown(text, base_dir=...)` 里独占一行的
+`![图注](相对路径)` 在预览与 HTML 导出中内嵌为 base64 data URI，Markdown 导出物
+保留原文；相对路径只能落在 base_dir 及其下级，失败就地提示并显示引用路径。
 """
+import base64
+import os
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from probatrix import Probatrix
@@ -275,3 +284,260 @@ def test_p_still_never_parses_markdown() -> None:
     """markdown() 不改变 p() 的契约：段落里的结构标记仍是字面文字。"""
     h = Probatrix().p("## 标题").markdown("## 标题").to_html(with_summary=False)
     assert h == "<p>## 标题</p>\n<h2>标题</h2>"
+
+
+# ---------------------------------------------------------------- Markdown 图片（本地相对路径内嵌）
+# 独占一行的 ![图注](相对路径) → 预览/HTML 导出内嵌 base64 data URI；只读 base_dir
+# 及其下级，失败就地提示并保留引用路径。契约文档：docs/manual/06-计算书排版.md。
+_PNG_1PX = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ"
+    "AAAABJRU5ErkJggg=="
+)
+_JPEG = b"\xff\xd8\xff\xe0fake-jpeg"
+_GIF = b"GIF89a-fake"
+_WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 fake"
+
+
+def _put(root: Path, rel: str, data: bytes = _PNG_1PX) -> Path:
+    """在测试临时目录里落一张图片（可按需造子目录）。"""
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def _html(md: str, base_dir: Path | None = None) -> str:
+    return Probatrix().markdown(md, base_dir=base_dir).to_html(with_summary=False)
+
+
+def _b64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+def test_markdown_image_embeds_data_uri(tmp_path: Path) -> None:
+    """成功即内嵌 base64（图注进 figcaption），不含任何文件路径。"""
+    _put(tmp_path, "images/section.png")
+    h = _html("![截面简图](images/section.png)", tmp_path)
+    assert h == ("<figure class='cb-md-img'>"
+                 f"<img src='data:image/png;base64,{_b64(_PNG_1PX)}' alt='截面简图'>"
+                 "<figcaption>截面简图</figcaption></figure>")
+
+
+def test_markdown_image_empty_caption_and_odd_filename(tmp_path: Path) -> None:
+    """空图注（无 figcaption）与带空格、中文的文件名都可用。"""
+    _put(tmp_path, "images/截面 简图 1.png")
+    h = _html("![](images/截面 简图 1.png)", tmp_path)
+    assert h.startswith("<figure class='cb-md-img'><img src='data:image/png;base64,")
+    assert h.endswith(" alt=''></figure>")
+    assert "<figcaption>" not in h
+
+
+def test_markdown_image_ends_previous_paragraph(tmp_path: Path) -> None:
+    """图片行自成一块，并结束上一段（不被吞进前一段落）。"""
+    _put(tmp_path, "a.png")
+    h = _html("说明文字\n![图](a.png)\n随后说明。", tmp_path)
+    lines = h.split("\n")
+    assert lines[0] == "<p>说明文字</p>"
+    assert lines[1].startswith("<figure class='cb-md-img'>")
+    assert lines[2] == "<p>随后说明。</p>"
+    assert len(lines) == 3
+
+
+def test_markdown_image_inside_fence_stays_text(tmp_path: Path) -> None:
+    """围栏代码块优先：里面的图片标记是文字，不读文件、不内嵌。"""
+    _put(tmp_path, "a.png")
+    h = _html("```\n![图](a.png)\n```", tmp_path)
+    assert h == "<pre><code>![图](a.png)</code></pre>"
+    assert "data:image" not in h
+
+
+def test_markdown_image_only_at_block_level(tmp_path: Path) -> None:
+    """语法只认独占一行：行内混排与列表项里的图片标记仍是文字。"""
+    _put(tmp_path, "a.png")
+    h = _html("见图 ![图](a.png)。\n\n- ![图](a.png)", tmp_path)
+    assert "data:image" not in h
+    assert "<p>见图 !<code>图</code>。</p>" in h
+    assert "<ul><li>!<code>图</code></li></ul>" in h
+
+
+def test_markdown_image_in_quote_embeds(tmp_path: Path) -> None:
+    """引用块内整行图片同样内嵌（引用递归走同一套块解析）。"""
+    _put(tmp_path, "a.png")
+    h = _html("> ![图](a.png)", tmp_path)
+    assert h.startswith("<blockquote><figure class='cb-md-img'>")
+    assert h.endswith("</figure></blockquote>")
+
+
+def test_markdown_image_without_base_dir_is_note() -> None:
+    """不给 base_dir 就不读文件：图片位置留一行提示，并显示引用路径。"""
+    h = Probatrix().markdown("![截面简图](images/section.png)").to_html(with_summary=False)
+    assert h == ("<p class='cb-md-img-note'>图片未嵌入：<code>images/section.png</code>"
+                 "（未提供 base_dir，相对路径无从解析）</p>")
+    assert "data:image" not in h
+
+
+def test_md_to_html_takes_base_dir_keyword(tmp_path: Path) -> None:
+    """md_to_html 与 markdown() 的 base_dir 关键字约定一致。"""
+    from probatrix.md import md_to_html
+    _put(tmp_path, "a.png")
+    assert md_to_html("![](a.png)", base_dir=tmp_path).startswith(
+        "<figure class='cb-md-img'><img src='data:image/png;base64,")
+
+
+def test_markdown_image_rejects_escape_out_of_base_dir(tmp_path: Path) -> None:
+    """`..` 逃逸被拒——即使目标文件真实存在也读不到。"""
+    base = tmp_path / "doc"
+    base.mkdir()
+    _put(tmp_path, "secret.png")           # base 之外、确实存在
+    h = _html("![x](../secret.png)", base)
+    assert h == ("<p class='cb-md-img-note'>图片未嵌入：<code>../secret.png</code>"
+                 "（路径超出 base_dir 范围）</p>")
+
+
+def _link_dir(link: Path, target: Path) -> bool:
+    """尽力造一个指向 target 的目录链接：符号链接优先，Window 无权限时退到目录联接。
+
+    返回是否建成——两条路都不通（权限受限）时由调用方跳过测试。
+    """
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        pass
+    if os.name != "nt":
+        return False
+    done = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                          capture_output=True)
+    return done.returncode == 0
+
+
+def test_markdown_image_symlink_escape_rejected(tmp_path: Path) -> None:
+    """目录链接指到 base_dir 之外同样被拒（resolve 之后再判包含关系）。"""
+    base = tmp_path / "doc"
+    base.mkdir()
+    outside = tmp_path / "outside"
+    _put(outside, "secret.png")            # base 之外、确实存在
+    if not _link_dir(base / "pics", outside):
+        pytest.skip("当前环境不允许创建符号链接或目录联接")
+    h = _html("![x](pics/secret.png)", base)
+    assert h == ("<p class='cb-md-img-note'>图片未嵌入：<code>pics/secret.png</code>"
+                 "（路径超出 base_dir 范围）</p>")
+
+
+@pytest.mark.parametrize(("ref", "reason"), [
+    ("/etc/passwd.png", "只接受 base_dir 内的相对路径"),
+    ("C:/Windows/a.png", "只接受 base_dir 内的相对路径"),
+    (r"\\server\share\a.png", "只接受 base_dir 内的相对路径"),
+    ("https://example.com/a.png", "只接受 base_dir 内的相对路径"),
+    ("data:image/png;base64,AAAA", "只接受 base_dir 内的相对路径"),
+    ("images/a.png:stream", "只接受 base_dir 内的相对路径"),
+    ("images/a.svg", "只支持 PNG/JPEG/WebP/GIF 图片"),
+    ("images/missing.png", "文件不存在"),
+])
+def test_markdown_image_bad_paths_are_notes(tmp_path: Path, ref: str, reason: str) -> None:
+    """绝对路径、盘符、UNC、URL、ADS 数据流、格式白名单外、文件缺失——都是就地提示。"""
+    h = _html(f"![图]({ref})", tmp_path)
+    assert h.startswith("<p class='cb-md-img-note'>图片未嵌入：<code>")
+    assert f"（{reason}）</p>" in h
+    assert "<img" not in h
+
+
+def test_markdown_image_note_keeps_escaping(tmp_path: Path) -> None:
+    """提示里的引用路径照旧 HTML 转义（尖括号、引号不会变成标记）。"""
+    h = _html('![图](images/<b>"x".png)', tmp_path)
+    assert "<b>" not in h
+    assert "&lt;b&gt;&quot;x&quot;.png" in h
+
+
+def test_markdown_image_invalid_content_or_empty(tmp_path: Path) -> None:
+    """扩展名像图片但内容不是图、空文件、目录：都以提示代替 <img>。"""
+    _put(tmp_path, "fake.png", b"not an image")
+    _put(tmp_path, "empty.png", b"")
+    (tmp_path / "dir.png").mkdir()
+    for name, reason in (
+        ("fake.png", "文件内容不是 PNG/JPEG/WebP/GIF"),
+        ("empty.png", "文件是空的"),
+        ("dir.png", "这是目录，不是图片文件"),
+    ):
+        h = _html(f"![图]({name})", tmp_path)
+        assert f"（{reason}）</p>" in h
+        assert "data:image" not in h
+
+
+@pytest.mark.parametrize(("name", "data", "mime"), [
+    ("a.png", _PNG_1PX, "image/png"),
+    ("a.jpg", _JPEG, "image/jpeg"),
+    ("a.JPEG", _JPEG, "image/jpeg"),
+    ("a.gif", _GIF, "image/gif"),
+    ("a.webp", _WEBP, "image/webp"),
+    ("a.png", _JPEG, "image/jpeg"),        # 扩展名骗人时按真实文件头给 MIME
+])
+def test_markdown_image_format_whitelist(tmp_path: Path, name: str,
+                                         data: bytes, mime: str) -> None:
+    """白名单四种格式都内嵌；MIME 按文件头判定，不看扩展名。"""
+    _put(tmp_path, name, data)
+    h = _html(f"![图]({name})", tmp_path)
+    assert f"<img src='data:{mime};base64,{_b64(data)}' alt='图'>" in h
+
+
+def test_markdown_image_keeps_markdown_source_in_export(tmp_path: Path) -> None:
+    """Markdown 导出物保留原文（图片仍是 ![图注](路径)），只有 HTML 内嵌。"""
+    _put(tmp_path, "images/section.png")
+    md = "## 简图\n\n![截面简图](images/section.png)"
+    book = Probatrix().markdown(md, base_dir=tmp_path)
+    assert book.to_markdown() == md + "\n"
+    assert "data:image/png;base64," in book.to_html(with_summary=False)
+
+
+def test_markdown_image_real_repo_png() -> None:
+    """仓库里的真 PNG（文档插图）也能嵌入——验证真实字节而非仅文件头。"""
+    manual = Path(__file__).resolve().parents[1] / "docs" / "manual"
+    if not (manual / "images" / "derive-layout.png").is_file():
+        pytest.skip("仓库未带示例图片")
+    h = _html("![推导排版](images/derive-layout.png)", manual)
+    assert "src='data:image/png;base64,iVBORw0KGgo" in h
+    assert h.endswith("<figcaption>推导排版</figcaption></figure>")
+
+
+def test_p_keeps_image_syntax_literal(tmp_path: Path) -> None:
+    """p() 契约不变：段落里的图片标记永远按字面文字显示。"""
+    _put(tmp_path, "a.png")
+    assert Probatrix().p("![图](a.png)").to_html(with_summary=False) == "<p>![图](a.png)</p>"
+
+
+def test_markdown_image_unparseable_path_is_note(tmp_path: Path) -> None:
+    """路径里的非法字符（NUL）只留提示：不让一张图把整篇计算顶掉。"""
+    h = _html("![x](a\x00b.png)", tmp_path)
+    assert h.startswith("<p class='cb-md-img-note'>图片未嵌入：<code>a\ufffdb.png</code>（")
+    assert h.endswith("）</p>")
+    assert "\x00" not in h                     # 控制字符不进 HTML
+    assert "<img" not in h
+
+
+def test_markdown_image_resolve_error_is_note(tmp_path: Path, monkeypatch) -> None:
+    """解析路径本身报错（链接环等，Python 版本不同会不同）也只留提示。"""
+    def boom(self, *args, **kwargs):
+        raise RuntimeError("链接环")
+    monkeypatch.setattr(Path, "resolve", boom)
+    h = _html("![x](a.png)", tmp_path)
+    assert h == ("<p class='cb-md-img-note'>图片未嵌入：<code>a.png</code>"
+                 "（路径无法解析：链接环）</p>")
+
+
+def test_markdown_image_read_error_is_note(tmp_path: Path, monkeypatch) -> None:
+    """读文件报错（权限等）同样折成提示，不抛给计算。"""
+    _put(tmp_path, "a.png")
+
+    def boom(self, *args, **kwargs):
+        raise PermissionError(13, "拒绝访问")
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    h = _html("![x](a.png)", tmp_path)
+    assert "（读取失败：拒绝访问）</p>" in h
+    assert "<img" not in h
+
+
+def test_markdown_image_path_kept_inside_base_dir(tmp_path: Path) -> None:
+    """`..` 只在真的指到 base_dir 之外时才拒；指回目录内的相对路径照常可用。"""
+    _put(tmp_path, "images/section.png")
+    h = _html("![图](images/../images/section.png)", tmp_path)
+    assert "<img src='data:image/png;base64," in h

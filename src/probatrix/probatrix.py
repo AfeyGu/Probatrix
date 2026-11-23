@@ -14,7 +14,7 @@
 约定：
 - 渲染目标为 HTML（to_html，预览/导出用）；LaTeX 交给前端 KaTeX；
   Markdown（to_markdown）是纯导出物，供下载阅读，不参与渲染管线；
-- `**粗体**` 与行内公式 `$...$` 的用法见 docs/manual/计算书排版.md。
+- `**粗体**` 与行内公式 `$...$` 的用法见 docs/manual/06-计算书排版.md。
 - check() 是一等公民：正文逐项输出判定，末尾自动汇总「验算结论汇总」表；
 - 单位纪律：模板内部统一 SI 基本单位，Field(unit=...) 管输入/展示换算。
 """
@@ -25,6 +25,7 @@ import base64
 import html
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 from .md import md_to_html
@@ -53,6 +54,8 @@ class _Item:
     path: str = ""
     caption: str = ""
     side: str = ""                  # ""（独立居中）| "left" | "right"（浮动环绕）
+    # md 专用：图片相对路径的根目录（None = 不读文件，图片位置只留提示）
+    base_dir: str | Path | None = None
     # table 专用
     header: list[str] = field(default_factory=list)
     rows: list[list[Any]] = field(default_factory=list)
@@ -86,7 +89,7 @@ class Probatrix:
         self._items.append(_Item(kind="p", text=text))
         return self
 
-    def markdown(self, text: str) -> "Probatrix":
+    def markdown(self, text: str, *, base_dir: str | Path | None = None) -> "Probatrix":
         """整篇 Markdown 当正文（内置文档、长说明用）。
 
         与 p() 的分工：p() 是单段文字，只认 `**粗体**` 与 `$…$`，长得像结构也按
@@ -95,8 +98,17 @@ class Probatrix:
 
         站内链接（.md 等非 http 目标）渲染成行内代码——预览区是页面内嵌容器，
         真链接会把整个界面跳走。内容仍逐段转义：md 里写 <script> 只会显示成文字。
+
+        图片：独占一行的 `![图注](相对路径)` 在预览和 HTML 导出里内嵌成 base64
+        data URI（离线可看），Markdown 导出物保留原文字。相对路径只按 base_dir
+        解析，且只许读 base_dir 及其下级——不给 base_dir、路径不合法、文件缺失
+        或内容不是图片时，正文里就地留一行提示并显示引用的路径。
+
+        典型用法（文档与本文件同目录，图片在其 images/ 下）::
+
+            b.markdown(path.read_text(encoding="utf-8"), base_dir=path.parent)
         """
-        self._items.append(_Item(kind="md", text=text.rstrip()))
+        self._items.append(_Item(kind="md", text=text.rstrip(), base_dir=base_dir))
         return self
 
     # ------------------------------------------------------------------
@@ -293,7 +305,7 @@ class Probatrix:
         """items 直出 HTML（界面预览与 HTML 导出用）。
 
         结构只由 API 决定；文本一律转义；行内格式（粗体/行内公式）契约见
-        docs/manual/计算书排版.md 的「内容语法契约」。图片环绕（side）由 image() 参数驱动。
+        docs/manual/06-计算书排版.md 的「内容语法契约」。图片环绕（side）由 image() 参数驱动。
         """
         out: list[str] = []
         if self.title:
@@ -307,7 +319,7 @@ class Probatrix:
                     if line.strip():
                         out.append(f"<p>{_inline(line)}</p>")
             elif k == "md":
-                out.append(md_to_html(it.text))
+                out.append(md_to_html(it.text, base_dir=it.base_dir))
             elif k in ("formula", "subs"):
                 out.append(f"<p class='formula'>{_esc(f'$${it.text}$$')}</p>")
                 out.extend(_cite_html(it))

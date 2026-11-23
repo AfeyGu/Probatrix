@@ -2,8 +2,8 @@
 
 > 写给模板作者：会 Python 的结构工程师。一个模板 = 一个 `.py` 文件。
 >
-> 本文件是 `docs/manual/模板开发指南.md` 的精简自包含版本，**脱离 Probatrix 项目也能用**。
-> 完整版（包含项目内的额外说明）见 Probatrix 仓库 `docs/manual/模板开发指南.md`；
+> 本文件是 `docs/manual/02-模板开发指南.md` 的精简自包含版本，**脱离 Probatrix 项目也能用**。
+> 完整版（包含项目内的额外说明）见 Probatrix 仓库 `docs/manual/02-模板开发指南.md`；
 > 两者若有出入以本文件为准（Pack 一年一校，与官方同步）。
 
 ## 0. 模板作者契约
@@ -116,7 +116,7 @@ Field(默认值,
 
 ### 内容语法契约
 
-完整说明见仓库 `docs/manual/计算书排版.md` 的「内容语法契约」。
+完整说明见仓库 `docs/manual/06-计算书排版.md` 的「内容语法契约」。
 
 - `**粗体**` 与行内公式 `$…$` 在标题 / 段落 / 表格单元格 / 图名中生效；
 - **结构只由 API 决定**：文本写得像 md（`##`、`>`、`-`、HTML 标签）一律字面显示，转义自动完成；无法字面输出成对 `**` 与 `$…$`。
@@ -130,6 +130,7 @@ Field(默认值,
 | `subs(latex, cite=None)` | **代入数值**（跟在 formula 后） | 独立公式块 |
 | `check(…)` | 验算项（见 §4） | 判定行 + 自动汇总表 |
 | `table(header, rows)` | 自由表格 | md 表格 |
+| `markdown(text, base_dir=None)` | 读入 Markdown 正文 | `![图注](images/section.png)` 独占一行，按 `base_dir` 内的相对路径读取并嵌入 HTML。 |
 | `image_bytes(data, mime, caption, side=None)` | **内嵌图片**（推荐，见 §5） | 居中图片 + 居中图名（小字）；`side="right"/"left"` 图文环绕 |
 | `image(path, caption, side=None)` | URL 图片（导出离线文件时相对路径会裂图，**慎用**） | 同上 |
 | `metric(name, value)` | 批量表格附加指标（不进正文，见 §4 末） | 无（仅进批量结果列） |
@@ -302,7 +303,7 @@ def calc(p: P, *, name: str = "") -> Probatrix:
 
 **命名与版本建议**：
 
-- 文件名即模板 id 的一部分（`gl.py` → `gl.calc`），**发布后不要改文件名**——工程文件按 id 引用，改名会让旧工程找不到模板；
+- 单文件用 `gl.py`，带资源的模板可以用 `gl/template.py`。两种布局的 `calc` 都对应 `gl.calc`，发布后保留该名称以便已有工程打开。
 - 用 git 管模板目录；改动后旧工程的「模板已改」提示是按文件 sha256 比对的；
 - 一个模板只做一类验算（宁多勿杂），参数控制在十几项以内。
 

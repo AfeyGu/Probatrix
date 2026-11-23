@@ -1,7 +1,8 @@
 """构建 Windows x64 便携版。解压后从 Probatrix.exe 启动，目标机需要 WebView2。
 
 在 Windows 上使用 Python 3.11+、build 与 Rust MSVC 工具链构建。
-产物含 Tauri 窗口、嵌入式 Python、示例模板、用户手册（docs/manual）和使用说明。
+产物含 Tauri 窗口、嵌入式 Python、示例模板（单文件与文件夹两种布局）、
+用户手册（docs/manual）和使用说明。
 构建时联网准备运行时与依赖，使用时可离线运行内置示例。
 """
 
@@ -24,6 +25,15 @@ WINDOWS_TARGET = "x86_64-pc-windows-msvc"
 PY_VERSION = "3.12.10"
 PY_OFFICIAL = "https://www.python.org/ftp/python"
 PREINSTALL = ["numpy", "scipy", "pandas", "matplotlib", "openpyxl"]
+
+#: 使用说明.txt 指向的手册（docs/manual 下按阅读顺序编号）
+MANUAL_ENTRY = "01-使用说明.md"
+MANUAL_GUIDE = "02-模板开发指南.md"
+
+#: 打包 examples/ 时排除的目录名：Python 缓存不进包（以 . 开头的版本库目录也被排除）
+EXCLUDED_DIR_NAMES = {"__pycache__"}
+#: 打包 examples/ 时排除的编译产物扩展名
+EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
 
 def version() -> str:
@@ -112,17 +122,43 @@ def trim_site_packages(python_dir: Path) -> None:
     print(f"    已剔除 {n} 个 tests 目录")
 
 
+def copy_examples(dest: Path) -> None:
+    """把 examples/ 整树复制进包：单文件模板、文件夹模板（<名>/template.py）与配套资源。
+
+    模板发现规则只在 loader 里维护一份，打包这边不抄——整树复制是它的超集：
+    根目录数据模块（如 Hsteel.py）、根目录资源，以及文件夹模板里的
+    images/、data/、*.md 都要跟着走；多带的非入口文件不影响加载，
+    漏带资源却会让模板一运行就找不到文件。缓存与版本库文件不进包。
+    """
+    source = ROOT / "examples"
+    dest.mkdir(parents=True)
+    for path in sorted(source.rglob("*")):
+        rel = path.relative_to(source)
+        if any(p in EXCLUDED_DIR_NAMES or p.startswith(".") for p in rel.parts):
+            continue
+        if path.is_file() and path.suffix in EXCLUDED_SUFFIXES:
+            continue
+        target = dest / rel
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+
+
 def assemble(app: Path, exe: Path, tag: str) -> None:
     print("==> 组装便携目录")
     site = app / "python" / "Lib" / "site-packages" / "probatrix"
     for rel in ("web/index.html", "vendor/katex/katex.min.css"):
         if not (site / rel).is_file():
             raise SystemExit(f"包内缺少 {rel}。请先在 web/ 下执行 npm run build。")
-    (app / "examples").mkdir()
+    manual = ROOT / "docs" / "manual"
+    for name in (MANUAL_ENTRY, MANUAL_GUIDE):
+        if not (manual / name).is_file():
+            raise SystemExit(f"docs/manual 下缺少 {name}（使用说明.txt 指向它）")
+    copy_examples(app / "examples")
     shutil.copy2(exe, app / "Probatrix.exe")
-    for tpl in sorted((ROOT / "examples").glob("*.py")):
-        shutil.copy2(tpl, app / "examples" / tpl.name)
-    shutil.copytree(ROOT / "docs" / "manual", app / "docs" / "manual")
+    shutil.copytree(manual, app / "docs" / "manual")
     (app / "使用说明.txt").write_text(
         f"""Probatrix {tag} · Windows x64 便携版
 
@@ -130,13 +166,21 @@ def assemble(app: Path, exe: Path, tag: str) -> None:
 Probatrix.exe。移动时请保留整个目录。Python {PY_VERSION}、计算界面、常用计算库和
 示例模板均随包提供，运行内置示例无需联网。导出时可在菜单勾选「导出离线版」。
 
-将自定义模板和配套数据文件放进 examples/。模板需要额外的库时，退出 Probatrix，
-在解压目录用包内 Python 安装（将「包名」换成模板文档里的 PyPI 包名）：
+自己做模板有两种放法，都放在 examples/ 下，重启 Probatrix 后出现在模板列表里：
+  1) 单文件：examples/我的模板.py
+  2) 文件夹：examples/我的模板/template.py
+     图片、数据表、报告片段等资源放同一个文件夹里（images/、data/、report.md），
+     文件夹里的私有模块在 template.py 中写相对导入 from .materials import 表。
+     文件夹名就是模板 id 前缀：examples/steel/template.py 里的 calc() 叫 steel.calc。
+单文件模板旁边放的数据表可用普通 import 引用（import Hsteel）。
+
+模板需要额外的库时，退出 Probatrix，在解压目录用包内 Python 安装（把「包名」换成
+模板文档里的 PyPI 包名）：
   .\\python\\python.exe -m pip install 包名
 
 工程请保存为 .pbproj 文件，重启后可重新打开。日志位于
 %LOCALAPPDATA%\\io.github.afeygu.probatrix\\logs\\probatrix-desktop.log。
-入门与界面操作见 docs/manual/使用说明.md，写模板见 docs/manual/模板开发指南.md。
+入门与界面操作见 docs/manual/{MANUAL_ENTRY}，写模板见 docs/manual/{MANUAL_GUIDE}。
 """, encoding="utf-8")
 
 

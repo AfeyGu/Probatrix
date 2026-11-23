@@ -35,9 +35,9 @@ Windows 桌面入口（src-tauri/）
   → 主界面挂载自绘顶栏后隐藏系统标题栏，仅当前主 WebView 与本次回环地址可调用窗口操作
   → 关窗关闭 stdin 管道，通知 Python 正常停机
 
-模板文件（examples/gl.py）
+模板入口（examples/gl.py 或 examples/steel_report/template.py）
   → loader.py    目录扫描，importlib 导入（报错隔离到 errors，不打断其他文件），
-                 收集 __probatrix_template__ 标记，填 template_id = "文件名.函数名"，算 sha256；
+                 收集 __probatrix_template__ 标记，填 template_id = "文件名或子目录名.函数名"，算入口的 sha256；
                  读模块级 __probatrix_requires__ 声明并查环境（find_spec），缺的记入 meta.missing_deps
   → engine.py    run_template(meta, params_dict, name="")：校验（pydantic）→ 执行 → 永不抛异常，
                  失败时 traceback 原样进 RunResult.error（这是模板作者的调试界面）；
@@ -78,7 +78,7 @@ Windows 桌面入口（src-tauri/）
 - **hash 只覆盖模板主文件**，`deps` 字段为依赖模块（如 Hsteel.py）预留。
 - **离线导出只内联 woff2**：woff/ttf 加上会到 1.73 MB，不划算；vendor 目录只备 css+2js+20 个 woff2。
 - **导出页模板用 `@@MARKER@@` 占位 + `str.replace`**，不能用 `str.format`（CSS 花括号冲突）。
-- **管线是 items → HTML 直通**（无隐式 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定。改渲染须同步《计算书排版》的「内容语法契约」。`markdown(text)` 是显式例外：整篇 Markdown 经 `md.py` 排成块级结构（标题/代码块/列表/表格/引用），`p()` 仍永不解析。 [计算书排版](docs/manual/计算书排版.md#内容语法契约)
+- **管线是 items → HTML 直通**（无隐式 md 解析层）：结构只由 Builder API 决定，文本一律 `_esc` 后进 `_inline`（仅 `**粗体**`），转义与行内格式契约由 `tests/test_html_contract.py` 锁定。改渲染须同步《计算书排版》的「内容语法契约」。`markdown(text)` 是显式例外：整篇 Markdown 经 `md.py` 排成块级结构（标题/代码块/列表/表格/引用），`p()` 仍永不解析。 [计算书排版](docs/manual/06-计算书排版.md#内容语法契约)
 
 ## 界面设计系统（v2-pro 通透风，改样式前先看这段）
 

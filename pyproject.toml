@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "probatrix"
-version = "0.1.0a12"
+version = "0.1.0a13"
 description = "结构构件批量计算书工具：Python 模板 + 批量参数 + Markdown/LaTeX 计算书"
 readme = "README.md"
 requires-python = ">=3.11"

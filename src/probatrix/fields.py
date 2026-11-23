@@ -1,6 +1,6 @@
 """参数声明：扩展元信息的 Field 与提取工具。
 
-模板作者用法见 docs/manual/参数输入界面.md。
+模板作者用法见 docs/manual/04-参数输入界面.md。
 
     from probatrix import Field
     from pydantic import BaseModel

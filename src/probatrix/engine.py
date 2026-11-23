@@ -1,6 +1,6 @@
 """计算执行：参数校验 → 运行模板 → 收集结果/报错。
 
-报错排查见 docs/manual/模板快速开始.md。计算异常的 traceback 原样写入
+报错排查见 docs/manual/03-模板快速开始.md。计算异常的 traceback 原样写入
 RunResult.error 并显示在预览区。缺少第三方库时，预览区显示库名和安装指引。
 """
 

@@ -147,6 +147,201 @@ def test_loader_data_modules_do_not_leak_across_dirs(tmp_path: Path) -> None:
 
 
 # ----------------------------------------------------------------------
+# loader：文件夹模板（<名>/template.py）与单文件模板并存
+# ----------------------------------------------------------------------
+FOLDER_TPL = """\
+from pydantic import BaseModel
+from probatrix import Probatrix, template
+from .materials import WX
+
+class P(BaseModel):
+    n: float = 1.0
+
+@template("文件夹模板")
+def calc(p: P) -> Probatrix:
+    from .extra import FACTOR       # 懒导入：调用时才解析，也属相对导入
+    return Probatrix().p(str(WX * p.n * FACTOR))
+"""
+
+
+def _folder_template(root: Path, folder: str = "steel", wx: float = 21,
+                     factor: float = 2) -> Path:
+    """在 root 下建文件夹模板 <folder>/template.py 及配套私有模块、资源目录。"""
+    d = root / folder
+    (d / "images").mkdir(parents=True)
+    (d / "template.py").write_text(FOLDER_TPL, encoding="utf-8")
+    (d / "materials.py").write_text(f"WX = {wx}\n", encoding="utf-8")
+    (d / "extra.py").write_text(f"FACTOR = {factor}\n", encoding="utf-8")
+    (d / "images" / "section.png").write_bytes(b"png")
+    return d
+
+
+def test_loader_folder_template_uses_folder_name_as_stem(tmp_path: Path) -> None:
+    """<名>/template.py 的模板 id = <名>.函数名——老工程按 id 引用，不能变成 template.calc。"""
+    _folder_template(tmp_path)
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    assert list(loader.entries) == ["steel.calc"]
+    entry = loader.entries["steel.calc"]
+    assert entry.meta.name == "文件夹模板"
+    assert entry.file == tmp_path / "steel" / "template.py"
+    # hash 只覆盖入口文件：资源与私有模块改了不该判成模板变了
+    assert entry.hash == file_hash(tmp_path / "steel" / "template.py")
+
+
+def test_loader_two_layouts_coexist_files_first_then_folders(tmp_path: Path) -> None:
+    """两种布局并存：先单文件（按文件名，同旧行为），再文件夹（按名字）。"""
+    (tmp_path / "gl.py").write_text(
+        (EXAMPLES / "gl.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "aaa.py").write_text(
+        (EXAMPLES / "stair.py").read_text(encoding="utf-8"), encoding="utf-8")
+    _folder_template(tmp_path, folder="document")
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    assert list(loader.entries)[:2] == ["aaa.calc", "gl.calc"]   # 单文件按文件名，顺序不乱
+    assert list(loader.entries)[-1] == "document.calc"            # 文件夹排在单文件之后
+
+
+def test_loader_folder_template_private_modules(tmp_path: Path) -> None:
+    """私有模块用 `from .materials import ...`：顶层与懒导入都通，不靠 sys.path。"""
+    _folder_template(tmp_path, wx=21, factor=2)
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    result = run_template(loader.entries["steel.calc"].meta, {})
+    assert result.ok, result.error
+    assert "42.0" in result.md
+    assert str(tmp_path / "steel") not in sys.path    # 文件夹模板不往 sys.path 加目录
+
+
+def test_loader_folder_template_allows_dot_and_space_in_name(tmp_path: Path) -> None:
+    """文件夹名带点或空格：id 直接拼名字（不引入斜杠），相对导入照常可用。"""
+    _folder_template(tmp_path, folder="steel.v2")
+    _folder_template(tmp_path, folder="图文 计算书")
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    assert set(loader.entries) == {"steel.v2.calc", "图文 计算书.calc"}
+    assert all("/" not in tid for tid in loader.entries)
+    for tid in loader.entries:
+        result = run_template(loader.entries[tid].meta, {})
+        assert result.ok, result.error
+        assert "42.0" in result.md
+
+
+def test_loader_folder_template_ignores_other_py_and_resource_dirs(tmp_path: Path) -> None:
+    """只认 <名>/template.py：文件夹里其他 *.py 不扫，没有 template.py 的文件夹不扫。"""
+    d = _folder_template(tmp_path)
+    (d / "helper.py").write_text(
+        "from pydantic import BaseModel\n"
+        "from probatrix import Probatrix, template\n"
+        "class Q(BaseModel):\n    x: float = 0\n"
+        "@template('不该被扫到')\n"
+        "def calc(q: Q) -> Probatrix:\n    return Probatrix()\n",
+        encoding="utf-8")
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "notes.py").write_text("X = 1\n", encoding="utf-8")
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    assert list(loader.entries) == ["steel.calc"]
+
+
+def test_loader_same_stem_conflict_keeps_single_file(tmp_path: Path) -> None:
+    """gl.py 与 gl/template.py 同名：保留单文件，文件夹报可读错误（不悄悄接管）。"""
+    (tmp_path / "gl.py").write_text(
+        (EXAMPLES / "gl.py").read_text(encoding="utf-8"), encoding="utf-8")
+    _folder_template(tmp_path, folder="gl")
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert list(loader.entries) == ["gl.calc"]
+    assert loader.entries["gl.calc"].meta.name == "钢梁强度验算"     # 来自单文件
+    assert loader.entries["gl.calc"].file == tmp_path / "gl.py"
+    assert len(loader.errors) == 1
+    err = loader.errors[0]
+    assert err.file == tmp_path / "gl" / "template.py"
+    assert "同名冲突" in err.error
+    assert "gl.py" in err.error and "template.py" in err.error
+    assert "Traceback" not in err.error                  # 给人看的说明，不是栈
+
+
+def test_loader_folder_template_sees_root_data_module(tmp_path: Path) -> None:
+    """文件夹模板里 `import Hsteel` 仍指向模板目录根部的数据表（老做法不变）。"""
+    d = _folder_template(tmp_path)
+    (d / "template.py").write_text(
+        FOLDER_TPL.replace("return Probatrix().p(str(WX * p.n * FACTOR))",
+                           "import Hsteel\n"
+                           "    return Probatrix().p(str(Hsteel.WX + WX * p.n * FACTOR))"),
+        encoding="utf-8")
+    (tmp_path / "Hsteel.py").write_text("WX = 7\n", encoding="utf-8")
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert loader.errors == []
+    result = run_template(loader.entries["steel.calc"].meta, {})
+    assert result.ok, result.error
+    assert "49.0" in result.md                           # 7 + 21*2
+
+
+def test_loader_folder_private_data_does_not_leak_across_dirs(tmp_path: Path) -> None:
+    """两个模板目录各有 steel/：各用自己的 materials.py；刷新后同样各归各。"""
+    dirs = []
+    for name, wx in (("a", 1111), ("b", 2222)):
+        d = tmp_path / name
+        d.mkdir()
+        _folder_template(d, wx=wx, factor=1)
+        dirs.append(d)
+
+    la, lb = TemplateLoader(dirs[0]), TemplateLoader(dirs[1])
+    la.scan()
+    lb.scan()
+    assert "2222" in run_template(lb.entries["steel.calc"].meta, {}).md
+    assert "1111" in run_template(la.entries["steel.calc"].meta, {}).md   # 没被 B 顶掉
+
+
+def test_loader_folder_lazy_relative_import_survives_other_loader(tmp_path: Path) -> None:
+    """两个目录各扫一次后，各自文件夹的懒导入仍取自己的 materials。
+
+    模块名带文件夹路径哈希，扫 B 时不拆 A 的模块——否则先加载的模板在算第二次时
+    `from .materials import ...` 要么报找不到，要么悄悄用另一个文件夹的表。
+    """
+    lazy = (
+        "from pydantic import BaseModel\n"
+        "from probatrix import Probatrix, template\n"
+        "class P(BaseModel):\n    n: float = 1.0\n"
+        "@template('懒导入文件夹模板')\n"
+        "def calc(p: P) -> Probatrix:\n"
+        "    from .materials import WX\n"
+        "    return Probatrix().p(str(WX))\n"
+    )
+    dirs = []
+    for name, wx in (("a", 1111), ("b", 2222)):
+        d = tmp_path / name
+        (d / "steel").mkdir(parents=True)
+        (d / "steel" / "template.py").write_text(lazy, encoding="utf-8")
+        (d / "steel" / "materials.py").write_text(f"WX = {wx}\n", encoding="utf-8")
+        dirs.append(d)
+
+    la, lb = TemplateLoader(dirs[0]), TemplateLoader(dirs[1])
+    la.scan()
+    lb.scan()
+    assert "1111" in run_template(la.entries["steel.calc"].meta, {}).md
+    assert "2222" in run_template(lb.entries["steel.calc"].meta, {}).md
+
+
+def test_loader_folder_refresh_reloads_private_modules(tmp_path: Path) -> None:
+    """改 materials.py 后直接 scan()：私有模块必须重新导入，不拿旧缓存。"""
+    d = _folder_template(tmp_path, wx=1, factor=1)
+    loader = TemplateLoader(tmp_path)
+    loader.scan()
+    assert "1.0" in run_template(loader.entries["steel.calc"].meta, {}).md
+    (d / "materials.py").write_text("WX = 500\n", encoding="utf-8")
+    loader.scan()
+    assert "500.0" in run_template(loader.entries["steel.calc"].meta, {}).md
+
+
+# ----------------------------------------------------------------------
 # engine：计算执行与报错
 # ----------------------------------------------------------------------
 def _gl_meta():

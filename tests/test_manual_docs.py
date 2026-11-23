@@ -17,7 +17,11 @@ from probatrix.loader import TemplateLoader
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
-TOPICS = ("模板快速开始", "参数输入界面", "计算与验算", "计算书排版")
+MANUAL_NAMES = (
+    "01-使用说明", "02-模板开发指南", "03-模板快速开始",
+    "04-参数输入界面", "05-计算与验算", "06-计算书排版",
+)
+TOPICS = MANUAL_NAMES[2:]
 
 
 def _load() -> tuple[object, object]:
@@ -39,33 +43,34 @@ def test_choices_come_from_docs_dir() -> None:
     module, meta = _load()
     field = meta.params_model.model_fields["doc"]
     choices = field.json_schema_extra["choices"]
-    assert {"使用说明", "模板开发指南", *TOPICS} <= set(choices)
-    assert field.default in choices                  # 默认值必须是合法选项
+    assert choices[:len(MANUAL_NAMES)] == list(MANUAL_NAMES)
+    assert field.default == "01-使用说明"
     assert all(isinstance(p, Path) for p in module._DOCS.values())
 
 
 def test_default_doc_renders_its_own_body() -> None:
     """默认项（下拉第一项）就能跑出正文——打开模板即有内容，不需先选。"""
     _, meta = _load()
-    default = meta.params_model.model_fields["doc"].default
     result = run_template(meta, {})
     assert result.ok
-    assert f"<h1>{default}</h1>" in result.html
-    assert result.md.startswith(f"# {default}")      # 导出物是原文
-
-
-def test_manual_doc_renders_body() -> None:
-    _, meta = _load()
-    result = run_template(meta, {"doc": "使用说明"})
-    assert result.ok
     assert "<h1>使用说明</h1>" in result.html
-    assert "<pre><code class='language-powershell'>" in result.html   # 代码块成结构
-    assert "<ol><li>" in result.html                                  # 有序列表成结构
+    assert "定义自己的计算工具" in result.html
+    assert result.md.startswith("# 使用说明")
+
+
+def test_legacy_manual_choice_still_renders() -> None:
+    _, meta = _load()
+    legacy = run_template(meta, {"doc": "使用说明"})
+    numbered = run_template(meta, {"doc": "01-使用说明"})
+    assert legacy.ok and numbered.ok
+    assert legacy.html == numbered.html
+    assert "<pre><code class='language-powershell'>" in legacy.html
+    assert "<ol><li>" in legacy.html
 
 
 def test_dev_guide_indexes_all_topics() -> None:
     _, meta = _load()
-    result = run_template(meta, {"doc": "模板开发指南"})
+    result = run_template(meta, {"doc": "02-模板开发指南"})
     assert result.ok
     assert "<h1>模板开发指南</h1>" in result.html
     for doc in TOPICS:
@@ -78,18 +83,27 @@ def test_topic_renders_its_own_body(doc: str) -> None:
     _, meta = _load()
     result = run_template(meta, {"doc": doc})
     assert result.ok
-    assert f"<h1>{doc}</h1>" in result.html
+    title = doc.split("-", 1)[1]
+    assert f"<h1>{title}</h1>" in result.html
     assert "<h2>" in result.html
     assert "language-python" in result.html
     source = (ROOT / "docs" / "manual" / f"{doc}.md").read_text(encoding="utf-8")
     assert result.md.rstrip() == source.rstrip()
 
 
+@pytest.mark.parametrize(("doc", "n_images"), [("03-模板快速开始", 2), ("06-计算书排版", 1)])
+def test_manual_embeds_its_screenshots(doc: str, n_images: int) -> None:
+    _, meta = _load()
+    result = run_template(meta, {"doc": doc})
+    assert result.ok
+    assert result.html.count("data:image/png;base64,") == n_images
+
+
 def test_unknown_doc_gives_readable_hint() -> None:
     _, meta = _load()
     result = run_template(meta, {"doc": "不存在的文档"})
     assert result.ok
-    assert "没有找到 docs/" in result.html
+    assert "没有找到文档「不存在的文档」" in result.html
 
 
 def test_scan_tolerates_missing_docs_dir() -> None:

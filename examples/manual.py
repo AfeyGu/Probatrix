@@ -4,13 +4,14 @@
 右侧即该文档，可导出 HTML/PDF。它走的是普通模板的完整链路（下拉参数 → 防抖重算 →
 预览与导出），没有一行专用界面代码。
 
-文档来源：从本文件所在目录向上逐级找 docs/（便携版 app/examples/ → app/docs/，
-源码仓库 CalcBook/examples/ → CalcBook/docs/），再退到当前工作目录下的 docs/。
-扫到什么列什么——放哪些文档进 docs/ 由打包决定，模板不甄别、不排序分组。
+从本文件所在目录往上找 docs/，找不到再查看当前工作目录。docs/manual/ 的
+编号手册排在前面，每篇文档从自己的目录读取配图。
 """
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -30,14 +31,16 @@ def _docs_dir() -> Path | None:
 
 
 def _scan(docs: Path | None) -> dict[str, Path]:
-    """显示名 → 文件路径：递归扫 *.md，显示名取文件名（重名时带相对目录）。"""
+    """按文件名列出文档，用户手册排在前面，重名时带相对目录。"""
     if docs is None:
         return {}
-    files = sorted(docs.rglob("*.md"))
+    manual = docs / "manual"
+    files = sorted(docs.rglob("*.md"), key=lambda path: (not path.is_relative_to(manual), path))
+    counts = Counter(path.stem for path in files)
     found: dict[str, Path] = {}
     for path in files:
         name = path.stem
-        if sum(1 for other in files if other.stem == name) > 1:
+        if counts[name] > 1:
             name = path.relative_to(docs).with_suffix("").as_posix().replace("/", " / ")
         found[name] = path
     return found
@@ -57,15 +60,23 @@ class ManualParams(BaseModel):
 def calc(p: ManualParams) -> Probatrix:
     b = Probatrix()
     path = _DOCS.get(p.doc)
+    if path is None and p.doc:
+        # 已保存工程可能仍引用没有编号的篇名。
+        matches = [candidate for name, candidate in _DOCS.items()
+                   if re.sub(r"^\d{2}-", "", name) == p.doc]
+        if len(matches) == 1:
+            path = matches[0]
     if path is None:
         b.h1("使用文档")
-        b.p("没有找到 docs/ 目录。把要展示的 Markdown 放进软件目录下的 docs/（模板目录"
-            "的上一级），再点界面上的「刷新模板」。")
+        if _DOCS:
+            b.p(f"没有找到文档「{p.doc}」。请从「文档」下拉框重新选择。")
+        else:
+            b.p("没有在 docs/ 下找到 Markdown 文档。放入文件后点「刷新模板」。")
         return b
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         b.h1(path.stem)
         b.p(f"读取失败：{exc}")
         return b
-    return b.markdown(text)
+    return b.markdown(text, base_dir=path.parent)

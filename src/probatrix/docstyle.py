@@ -39,16 +39,26 @@ DOC_CSS = """\
   width: 45%; margin: 6px 0 10px; }
 .cb-doc figure.cb-float-right { float: right; margin-left: 16px; }
 .cb-doc figure.cb-float-left { float: left; margin-right: 16px; }
-.cb-doc figure img { width: 100%; }
+.cb-doc figure.cb-float-right img, .cb-doc figure.cb-float-left img { width: 100%; }
 .cb-doc figcaption { text-align: center; font-size: 12.5px; color: #555; margin-top: 6px; }
+
+/* ---- Markdown 图片（独占一行的 ![图注](相对路径)）：居中、不放大、不超正文宽 ---- */
+.cb-doc figure.cb-md-img { margin: 12px auto; text-align: center; }
+.cb-doc figure.cb-md-img img { display: block; margin: 0 auto; width: auto;
+                               max-width: 100%; height: auto; }
+/* 图片没能嵌入时的就地提示（保留引用路径，提醒作者补图） */
+.cb-doc p.cb-md-img-note { margin: 10px 0; padding: 6px 10px; color: #7a5c1e;
+                           background: #fdf7e6; border: 1px dashed #e3d3a4;
+                           border-radius: 4px; font-size: 13px; }
 .cb-doc h1, .cb-doc h2, .cb-doc h3, .cb-doc p.formula, .cb-doc p.item,
 .cb-doc blockquote, .cb-doc table, .cb-doc pre, .cb-doc ul, .cb-doc ol,
-.cb-doc hr { clear: both; }
+.cb-doc hr, .cb-doc figure.cb-md-img, .cb-doc p.cb-md-img-note { clear: both; }
 
 /* ---- 打印（PDF 送审）：分页保护 ---- */
 @media print {
   .cb-doc table, .cb-doc p.formula, .cb-doc pre,
-  .cb-doc figure.cb-float-right, .cb-doc figure.cb-float-left { page-break-inside: avoid; }
+  .cb-doc figure.cb-float-right, .cb-doc figure.cb-float-left,
+  .cb-doc figure.cb-md-img, .cb-doc p.cb-md-img-note { page-break-inside: avoid; }
   .cb-doc h1, .cb-doc h2, .cb-doc h3, .cb-doc h4 { page-break-after: avoid; }
 }
 """

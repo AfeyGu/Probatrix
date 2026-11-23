@@ -28,13 +28,13 @@ probatrix serve --templates examples
 
 默认地址 `http://127.0.0.1:8317`，端口被占用时自动递加。
 
-界面操作、批量表格、导出选项与常见问题见 **[docs/manual/使用说明.md](docs/manual/使用说明.md)**。
+界面操作、批量表格、导出选项与常见问题见 **[docs/manual/01-使用说明.md](docs/manual/01-使用说明.md)**。
 
 ## 写一个计算模板
 
-第一次写模板，可以先复制软件自带的钢梁示例，改名字并跑出自己的计算书。[模板快速开始](docs/manual/模板快速开始.md)
+第一次写模板，可以先复制软件自带的钢梁示例，改名字并跑出自己的计算书。[模板快速开始](docs/manual/03-模板快速开始.md)
 
-一个模板 = 一个 `.py` 文件，放进模板目录即被自动扫描：**参数声明** + **计算书写法**。
+简单模板可以将单个 `.py` 放在 `examples/`。有正文、图片或数据表时，可以用一个独立文件夹，把入口写成 `template.py`，资源随模板归档。[模板目录写法](docs/manual/02-模板开发指南.md#放置模板和配套文件)
 
 ```python
 from pydantic import BaseModel
@@ -58,9 +58,9 @@ def calc(p: GLParams) -> Probatrix:
     return b
 ```
 
-`Field` 的元信息直接驱动界面：单件表单、批量表格列、工程文件三处同源。`b.check()` 在正文输出判定行，并在计算书末尾自动汇总「验算结论」表；`b.metric()` 可为批量表格追加结果指标列。`b.markdown(text)` 把整篇 Markdown 当正文排（标题、代码块、列表、表格）——内置的「使用文档」模板就是用它在软件里读 `docs/` 下的手册。
+`Field` 的元信息直接驱动界面：单件表单、批量表格列、工程文件三处同源。`b.check()` 在正文输出判定行，并在计算书末尾自动汇总「验算结论」表；`b.metric()` 可为批量表格追加结果指标列。`b.markdown(text, base_dir=...)` 可以把 Markdown 正文和本地配图放进计算书。「使用文档」和「图文计算书示例」都用这套方法。
 
-模板手册按快速开始、参数输入界面、计算与验算、计算书排版组织。可运行示例在 `examples/`。[模板开发指南](docs/manual/模板开发指南.md) · [示例目录](examples/)
+模板手册按快速开始、参数输入界面、计算与验算、计算书排版组织。可运行示例在 `examples/`。[模板开发指南](docs/manual/02-模板开发指南.md) · [示例目录](examples/)
 
 ## 当前状态
 
@@ -74,8 +74,8 @@ MVP 已具备：模板加载与刷新、参数声明驱动界面、单项实时�
 
 | 我想… | 看这里 |
 |---|---|
-| 装软件、出计算书 | [docs/manual/使用说明.md](docs/manual/使用说明.md) |
-| 写模板 | [docs/manual/模板开发指南.md](docs/manual/模板开发指南.md) |
+| 装软件、出计算书 | [docs/manual/01-使用说明.md](docs/manual/01-使用说明.md) |
+| 写模板 | [docs/manual/02-模板开发指南.md](docs/manual/02-模板开发指南.md) |
 | 改代码前了解系统怎么运转 | [docs/架构全景.md](docs/架构全景.md) |
 | 调界面样式 | [docs/subsystems/UI设计规范.md](docs/subsystems/UI设计规范.md) |
 | 起开发环境 / 打包发布 | [docs/cookbook/](docs/cookbook/) |
