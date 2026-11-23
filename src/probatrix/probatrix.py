@@ -14,7 +14,7 @@
 约定：
 - 渲染目标为 HTML（to_html，预览/导出用）；LaTeX 交给前端 KaTeX；
   Markdown（to_markdown）是纯导出物，供下载阅读，不参与渲染管线；
-- 行内格式契约：`**粗体**` 与行内公式 `$...$`，见 docs/模板开发指南.md；
+- 行内格式契约：`**粗体**` 与行内公式 `$...$`，见 docs/manual/模板开发指南.md；
 - check() 是一等公民：正文逐项输出判定，末尾自动汇总「验算结论汇总」表；
 - 单位纪律：模板内部统一 SI 基本单位，Field(unit=...) 管输入/展示换算。
 """
@@ -276,7 +276,7 @@ class Probatrix:
         """items 直出 HTML（界面预览与 HTML 导出用）。
 
         结构只由 API 决定；文本一律转义；行内格式（粗体/行内公式）契约见
-        docs/模板开发指南.md「内容语法契约」。图片环绕（side）由 image() 参数驱动。
+        docs/manual/模板开发指南.md「内容语法契约」。图片环绕（side）由 image() 参数驱动。
         """
         out: list[str] = []
         if self.title:

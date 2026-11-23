@@ -259,7 +259,7 @@ function ratioOf(item) {
 </template>
 
 <style>
-/* ============ Probatrix 设计令牌（v2-pro 通透体系，规范见 docs/ui-design.md）============
+/* ============ Probatrix 设计令牌（v2-pro 通透体系，规范见 docs/subsystems/UI设计规范.md）============
    三档半径 · 三级材质 · 全按钮无突出色 · 光自上来。主题切换 = 换 data-theme 下的色组。 */
 :root {
   /* 画布与色斑（body 三团 radial 渐变叠加在画布上） */

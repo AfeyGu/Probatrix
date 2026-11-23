@@ -26,6 +26,8 @@ npm run build                         # 构建到 src/probatrix/web/ 并拷贝 v
 
 ## 架构（数据流）
 
+> 这里是速查图。入口形态、跨子系统约定与刻意不做的边界见 `docs/架构全景.md`；文档怎么分层见 `docs/README.md`。
+
 ```
 Windows 桌面入口（src-tauri/）
   → 无控制台启动 probatrix.desktop，监听就绪后回报本机端口给 Tauri
@@ -57,10 +59,10 @@ Windows 桌面入口（src-tauri/）
                  导出模板注入 @@DOCSTYLE@@——保证所见即所得，不要在别处复制这份样式
 ```
 
-## 关键设计决定（改代码前先读 `计算书工具文档.md`）
+## 关键设计决定（改代码前先读 `docs/架构全景.md`）
 
 - **改了机制/约定必须同步文档**：凡涉及契约、API、数据流、行为约定的变更，
-  同轮同步相关 md（`AGENTS.md` 架构图、`计算书工具文档.md`、`docs/模板开发指南.md`、
+  同轮同步相关 md（`AGENTS.md` 架构图、`docs/架构全景.md`、`docs/manual/模板开发指南.md`、
   `README.md`），不能只改代码。
 - **模板第三方依赖用 `__probatrix_requires__` 声明**（模块级 import 名列表，可选）：
   loader 加载时检查环境，缺失记入 meta.missing_deps（/api/templates 与 schema 带出，
@@ -68,7 +70,7 @@ Windows 桌面入口（src-tauri/）
   （解析 `No module named 'X'`，给出缺库名）。便携版用户通过包内 `python/python.exe -m pip install` 安装所需的 PyPI 包。
 - **Windows 便携包**由 `tools/build_release.py` 组装。`Probatrix.exe` 是 Tauri Release，
   同目录的 `python/` 内含嵌入版 Python 3.12、pip、Probatrix、numpy/scipy/pandas/matplotlib/openpyxl。
-  `examples/` 放模板，`docs/` 放模板指南。wheel 供构建时安装进包内 Python。
+  `examples/` 放模板，`docs/manual/` 是随包分发的用户手册（其余 `docs/` 子目录不进发行物）。wheel 供构建时安装进包内 Python。
   目标机需装 WebView2，解压即可离线使用内置示例。日志及 WebView2 缓存保存在本机应用数据目录。
 - **契约是产品核心**：模板作者只 import `Probatrix / Field / template` 三个名字（`src/probatrix/__init__.py`）。参数声明的 `label/unit/choices/group/batch_hidden/row/show_if` 同时驱动前端表单、批量表格列、.pbproj 三处——改契约要三处一起考虑（batch_hidden：批量表格默认隐藏列，可在「列显隐」勾回；row：声明相邻且同标记的参数在单件表单并排一行；show_if：条件显隐小表达式，不满足时表单隐藏但值保留，批量侧降级为默认隐藏列——它只是界面提示，开关想改变计算需模板计算里自己分支）。
 - **模板内部统一 SI 基本单位**，`Field(unit=...)` 只管展示换算；不做自动单位引擎。
@@ -80,12 +82,12 @@ Windows 桌面入口（src-tauri/）
 
 ## 界面设计系统（v2-pro 通透风，改样式前先看这段）
 
-- **UI 设计标准（v2-pro 定稿）见 `docs/ui-design.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。设计稿真源在 `ui-concepts/`（`v2-pro.html` 为实现基准，其余三版为历史方案对照）。
+- **UI 设计标准（v2-pro 定稿）见 `docs/subsystems/UI设计规范.md`**：三档半径（squircle 变曲率）、Mica/Acrylic 三级材质、全按钮无突出色等硬规则；新增或修改界面一律遵照该文档。设计稿真源在 `ui-concepts/`（`v2-pro.html` 为实现基准，其余三版为历史方案对照）。
 
 - **所有颜色走 App.vue `:root` 的 `--cb-*` token**（画布与色斑/材质/文字/语义色/三档半径/字体三级），Element Plus 的 `--el-*` 映射到 token。**改配色只改 token，不硬编码色值**。
 - **主题切换 = 换 `data-theme` 属性下的色组**（雾蓝/素白/暖砂三套画布色相，材质与半径不变；暗色暂不做）。新主题只需在 App.vue 加一个 `:root[data-theme=…]` 块。
 - EP 的 `--el-color-primary-light-3/5/7/8/9`、`-dark-2` 是编译期字面量，**换主色必须逐个覆盖**，只改 `--el-color-primary` 会让 plain 按钮/标签还是旧色。
-- 硬规则（详见 `docs/ui-design.md` §6）：半径只许三档（卡 24 / 工作区输入 12 / 操作胶囊 999px），禁止自定半径；按钮统一玻璃胶囊、无实心突出色；阴影蓝灰调双层；常规过渡 150–200ms，视图切换的选中胶囊在轨道内滑动；数值等宽（`--cb-font-num` + tabular-nums）；光自上来（上缘 1px 高光、下缘暗线）。
+- 硬规则（详见 `docs/subsystems/UI设计规范.md` §6）：半径只许三档（卡 24 / 工作区输入 12 / 操作胶囊 999px），禁止自定半径；按钮统一玻璃胶囊、无实心突出色；阴影蓝灰调双层；常规过渡 150–200ms，视图切换的选中胶囊在轨道内滑动；数值等宽（`--cb-font-num` + tabular-nums）；光自上来（上缘 1px 高光、下缘暗线）。
 - 双密度：批量表格保持紧凑（small/13px/单行），其余界面 14px 带呼吸感；批量表格列 min-width 由表头文字单行宽度算出（`colMinW`），单元格 nowrap。
 - 文档预览区（.cb-doc）是正式纸感（衬线/黑白/2px 直角，`.doc-paper` 显式白底），与界面风格刻意分区——预览必须与导出一致，改排版只改 `docstyle.py`。
 

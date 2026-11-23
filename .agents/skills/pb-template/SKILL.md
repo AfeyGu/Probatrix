@@ -17,7 +17,7 @@ description: >
 
 **本 skill 自包含**，所有 API、测试模式、反模式都在 `references/` 和 `assets/`
 里。**不依赖 Probatrix 项目目录是否在**——但如果项目就在手边，可以参考
-项目内的 `docs/模板开发指南.md`（与 `references/api.md` 同步校准）。
+项目内的 `docs/manual/模板开发指南.md`（与 `references/api.md` 同步校准）。
 
 ---
 
@@ -104,9 +104,9 @@ API 细节一律查 `references/api.md`，不在此重复。
 并行做三件事：
 
 ### 2.1 读 skill 自带的 API 速查
-**主源**：`references/api.md`（**自包含的完整 API**，与 Probatrix 项目 `docs/模板开发指南.md` 同步）。
+**主源**：`references/api.md`（**自包含的完整 API**，与 Probatrix 项目 `docs/manual/模板开发指南.md` 同步）。
 **如果 Probatrix 项目在手边**：
-- `docs/模板开发指南.md` —— 完整版（含项目内说明）
+- `docs/manual/模板开发指南.md` —— 完整版（含项目内说明）
 - `examples/gl.py` —— 最小示例
 - `examples/stair.py` —— 复杂示例（图+选筋+多 check+复杂表格）
 
@@ -235,7 +235,7 @@ probatrix serve --templates <你的模板目录> --port 8317 --no-browser
 
 | 用途 | 路径 |
 |---|---|
-| 完整开发指南（项目内，与 `references/api.md` 同步） | `docs/模板开发指南.md` |
+| 完整开发指南（项目内，与 `references/api.md` 同步） | `docs/manual/模板开发指南.md` |
 | 最小示例（项目内） | `examples/gl.py` |
 | 复杂示例（图+选筋+多 check） | `examples/stair.py` |
 | 契约测试模式 | `tests/test_contract.py`（末尾 `test_example_gl_end_to_end`） |
@@ -243,6 +243,6 @@ probatrix serve --templates <你的模板目录> --port 8317 --no-browser
 | 模板加载器 | `src/probatrix/loader.py`（看 hash 计算、扫描逻辑） |
 | 模板目录约定 | 默认 `examples/`，启动时 `--templates` 指定 |
 
-**同步说明**：`references/api.md` 是本 skill 的自包含版本，与项目 `docs/模板开发指南.md`
+**同步说明**：`references/api.md` 是本 skill 的自包含版本，与项目 `docs/manual/模板开发指南.md`
 应保持一致。**当 Probatrix 项目更新了 API 时，记得同步 `references/api.md`**（建议每
 半年或发版时校准一次）。

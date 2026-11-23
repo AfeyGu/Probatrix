@@ -1,7 +1,7 @@
 """构建 Windows x64 便携版。解压后从 Probatrix.exe 启动，目标机需要 WebView2。
 
 在 Windows 上使用 Python 3.11+、build 与 Rust MSVC 工具链构建。
-产物含 Tauri 窗口、嵌入式 Python、示例模板、模板文档和使用说明。
+产物含 Tauri 窗口、嵌入式 Python、示例模板、用户手册（docs/manual）和使用说明。
 构建时联网准备运行时与依赖，使用时可离线运行内置示例。
 """
 
@@ -122,7 +122,7 @@ def assemble(app: Path, exe: Path, tag: str) -> None:
     shutil.copy2(exe, app / "Probatrix.exe")
     for tpl in sorted((ROOT / "examples").glob("*.py")):
         shutil.copy2(tpl, app / "examples" / tpl.name)
-    shutil.copytree(ROOT / "docs", app / "docs")
+    shutil.copytree(ROOT / "docs" / "manual", app / "docs" / "manual")
     (app / "使用说明.txt").write_text(
         f"""Probatrix {tag} · Windows x64 便携版
 
@@ -136,7 +136,7 @@ Probatrix.exe。移动时请保留整个目录。Python {PY_VERSION}、计算界
 
 工程请保存为 .pbproj 文件，重启后可重新打开。日志位于
 %LOCALAPPDATA%\\io.github.afeygu.probatrix\\logs\\probatrix-desktop.log。
-模板开发指南见 docs/模板开发指南.md。
+入门与界面操作见 docs/manual/使用说明.md，写模板见 docs/manual/模板开发指南.md。
 """, encoding="utf-8")
 
 
