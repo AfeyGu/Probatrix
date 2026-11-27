@@ -20,11 +20,12 @@
 
 ## 2. 强度验算
 
-$$\sigma = \dfrac{M_x}{\gamma_x W_x} \le f$$
+$$\begin{aligned}
+\sigma &= \dfrac{M_x}{\gamma_x W_x} \le f \\
+&= \dfrac{100 \times 10^6}{1.05 \times 1,000,000} = 95.2\ \mathrm{N/mm^2}
+\end{aligned}$$
 > 依据：GB 50017-2017 第 4.1.1 条
 
-
-$$\sigma = \dfrac{100 \times 10^6}{1.05 \times 1,000,000}= 95.2\ \mathrm{N/mm^2}$$
 
 - **抗弯强度**：$\sigma \le f$：95.24 ≤ 215 N/mm²，比值 0.443 —— **满足**
 > 依据：GB 50017-2017 第 4.1.1 条
@@ -34,9 +35,7 @@ $$\sigma = \dfrac{100 \times 10^6}{1.05 \times 1,000,000}= 95.2\ \mathrm{N/mm^2}
 | --- | --- | --- | --- | --- |
 | 抗弯强度 | 95.24 ≤ 215 N/mm² | 0.443 | 满足 | GB 50017-2017 4.1.1 |
 
-
 ---
-
 # 算例二：超载 Mx=500（不满足）
 
 # 钢梁强度验算
@@ -52,11 +51,12 @@ $$\sigma = \dfrac{100 \times 10^6}{1.05 \times 1,000,000}= 95.2\ \mathrm{N/mm^2}
 
 ## 2. 强度验算
 
-$$\sigma = \dfrac{M_x}{\gamma_x W_x} \le f$$
+$$\begin{aligned}
+\sigma &= \dfrac{M_x}{\gamma_x W_x} \le f \\
+&= \dfrac{500 \times 10^6}{1.05 \times 1,000,000} = 476.2\ \mathrm{N/mm^2}
+\end{aligned}$$
 > 依据：GB 50017-2017 第 4.1.1 条
 
-
-$$\sigma = \dfrac{500 \times 10^6}{1.05 \times 1,000,000}= 476.2\ \mathrm{N/mm^2}$$
 
 - **抗弯强度**：$\sigma \le f$：476.2 ≤ 215 N/mm²，比值 2.215 —— **不满足**
 > 依据：GB 50017-2017 第 4.1.1 条
@@ -65,3 +65,4 @@ $$\sigma = \dfrac{500 \times 10^6}{1.05 \times 1,000,000}= 476.2\ \mathrm{N/mm^2
 | 验算项 | 数值 | 比值 | 结论 | 依据 |
 | --- | --- | --- | --- | --- |
 | 抗弯强度 | 476.2 ≤ 215 N/mm² | 2.215 | **不满足** | GB 50017-2017 4.1.1 |
+

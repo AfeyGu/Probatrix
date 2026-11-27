@@ -363,10 +363,10 @@ def test_run_template_success() -> None:
 
 
 def test_run_template_validation_error() -> None:
-    result = run_template(_gl_meta(), {"fy": 0})
+    result = run_template(_gl_meta(), {"Wx": 0})
     assert result.ok is False
     assert result.error_title == "参数校验失败"
-    assert "fy" in result.error                  # 校验详情可见
+    assert "Wx" in result.error                  # 校验详情可见
 
 
 def test_run_template_crash_captured(tmp_path: Path) -> None:

@@ -195,4 +195,44 @@ def test_example_gl_end_to_end() -> None:
     assert "**不满足**" in book2.to_markdown()
 
     with pytest.raises(ValidationError):
-        meta.make_params({"fy": 0})       # gt=0 生效
+        meta.make_params({"Wx": 0})       # gt=0 生效
+
+
+def test_example_gl_beam_end_to_end() -> None:
+    """进阶模板：荷载算弯矩 + 挠度，强度用设计值、挠度用标准值。"""
+    mod = _load_example("gl_beam")
+    metas = [m.__probatrix_template__ for m in vars(mod).values()
+             if hasattr(m, "__probatrix_template__")]
+    assert len(metas) == 1
+    meta = metas[0]
+
+    book = meta.run(meta.make_params({}))
+    md = book.to_markdown()
+    assert "# 简支梁验算" in md
+    assert "比值 0.299" in md             # 1.5*10*6000^2/8/(1.05*1e6)/215 ≈ 0.299
+    assert book.all_ok is True
+    assert "弯矩（设计值）" in md and "挠度（标准值）" in md
+    assert book.metrics["M (kN·m)"] == "67.50"
+    assert book.metrics["δ (mm)"] == "6.83"
+
+    # 仅集中力：弯矩设计值 1.5*100*1000*6000/4 = 225e6 N·mm
+    only_p = meta.run(meta.make_params({"q": 0, "P": 100}))
+    assert only_p.metrics["M (kN·m)"] == "225.00"
+    assert only_p.metrics["δ (mm)"] == "18.20"
+
+    # 两种荷载叠加：67.5 + 225 = 292.5 kN·m，挠度 6.83 + 18.20 = 25.03 mm
+    both = meta.run(meta.make_params({"P": 100}))
+    assert both.metrics["M (kN·m)"] == "292.50"
+    assert both.metrics["δ (mm)"] == "25.03"
+
+    # 挠度验算：默认 L/200 限值 30mm；收紧到 L/400 后限值 15mm 成为控制项
+    assert len(book.checks) == 2             # 抗弯强度 + 跨中挠度
+    deflection = [c for c in book.checks if c.name == "跨中挠度"][0]
+    assert deflection.limit == pytest.approx(30.0)
+    strict = meta.run(meta.make_params({"delta_limit": "L/400"}))
+    strict_deflection = [c for c in strict.checks if c.name == "跨中挠度"][0]
+    assert strict_deflection.limit == pytest.approx(15.0)
+    assert strict.max_ratio == pytest.approx(6.83 / 15.0, abs=1e-2)
+
+    with pytest.raises(ValidationError):
+        meta.make_params({"W": 0})        # gt=0 生效

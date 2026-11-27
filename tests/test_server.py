@@ -38,7 +38,7 @@ def test_template_schema(client: TestClient) -> None:
     assert r.status_code == 200
     params = r.json()["params"]
     names = [p["name"] for p in params]
-    assert names == ["steel", "fy", "gamma_x", "Wx", "Mx"]   # 声明顺序
+    assert names == ["steel", "gamma_x", "Wx", "Mx"]   # 声明顺序；强度由牌号查表，非输入
     steel = params[0]
     assert steel["label"] == "钢材牌号" and steel["choices"] == ["Q235B", "Q355B"]
 
@@ -68,11 +68,11 @@ def test_run_ok(client: TestClient) -> None:
 
 
 def test_run_error_visible(client: TestClient) -> None:
-    r = client.post("/api/run", json={"template_id": "gl.calc", "params": {"fy": 0}})
+    r = client.post("/api/run", json={"template_id": "gl.calc", "params": {"Wx": 0}})
     data = r.json()
     assert data["ok"] is False
     assert data["error_title"] == "参数校验失败"
-    assert "fy" in data["error"]
+    assert "Wx" in data["error"]
 
 
 def test_run_batch(client: TestClient) -> None:
@@ -81,14 +81,14 @@ def test_run_batch(client: TestClient) -> None:
         "items": [
             {"template_id": "gl.calc", "name": "GL-1", "params": {}},
             {"template_id": "gl.calc", "name": "GL-2", "params": {"Mx": 500}},
-            {"template_id": "gl.calc", "name": "GL-3", "params": {"fy": 0}},  # 坏行
+            {"template_id": "gl.calc", "name": "GL-3", "params": {"Wx": 0}},  # 坏行
         ],
     })
     results = r.json()["results"]
     assert [x["id"] for x in results] == ["GL-1", "GL-2", "GL-3"]
     assert results[0]["all_ok"] is True
     assert results[1]["all_ok"] is False
-    assert results[2]["ok"] is False and "fy" in results[2]["error"]
+    assert results[2]["ok"] is False and "Wx" in results[2]["error"]
 
 
 # ----------------------------------------------------------------------
